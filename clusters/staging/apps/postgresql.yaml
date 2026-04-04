@@ -89,8 +89,8 @@ spec:
         vault.hashicorp.com/agent-inject: "true"
 
         # Kubernetes auth role bound to this pod's ServiceAccount.
-        # Role must exist in Vault: vault write auth/kubernetes/role/postgresql-staging ...
-        vault.hashicorp.com/role: "postgresql-staging"
+        # Role must exist in Vault: vault write auth/kubernetes/role/postgresql ...
+        vault.hashicorp.com/role: "postgresql"
 
         # Keep agent running after init so secrets are renewed on rotation.
         vault.hashicorp.com/agent-pre-populate-only: "false"
@@ -210,7 +210,7 @@ spec:
 #   POSTGRES_PASSWORD  - PostgreSQL password (never commit this to Git)
 #   POSTGRES_DB        - Default database created on first startup
 #
-# Vault policy required (postgresql-staging):
+# Vault policy required (postgresql):
 #   path "platform/data/postgresql/staging" {
 #     capabilities = ["read"]
 #   }
@@ -218,6 +218,6 @@ spec:
 # Vault Kubernetes auth role required:
 #   bound_service_account_names      = ["postgresql"]
 #   bound_service_account_namespaces = ["staging"]
-#   policies                         = ["postgresql-staging"]
+#   policies                         = ["postgresql"]
 #   ttl                              = "1h"
 # ─────────────────────────────────────────────────────────────────────────────
