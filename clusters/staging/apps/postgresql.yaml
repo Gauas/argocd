@@ -59,6 +59,8 @@ metadata:
   labels:
     app: postgresql
     environment: staging
+  annotations:
+    vault.hashicorp.com/service-account-token-audience: vault
 
 ---
 apiVersion: apps/v1
@@ -83,7 +85,6 @@ spec:
         app: postgresql
         environment: staging
       annotations:
-        vault.hashicorp.com/service-account-token-audience: "vault"
         # ── Vault Agent Injector ─────────────────────────────────────────────
         # Vault agent sidecar is automatically injected by the Vault Injector
         # webhook running in the vault namespace.
