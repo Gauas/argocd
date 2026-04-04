@@ -70,7 +70,6 @@ metadata:
     app: postgresql
     environment: staging
   annotations:
-    vault.hashicorp.com/service-account-token-audience: "vault"
     argocd.argoproj.io/sync-wave: "1" # deploy after vault (wave -2)
 spec:
   serviceName: postgresql-headless
@@ -84,6 +83,7 @@ spec:
         app: postgresql
         environment: staging
       annotations:
+        vault.hashicorp.com/service-account-token-audience: "vault"
         # ── Vault Agent Injector ─────────────────────────────────────────────
         # Vault agent sidecar is automatically injected by the Vault Injector
         # webhook running in the vault namespace.
