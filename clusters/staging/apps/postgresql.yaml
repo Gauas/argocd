@@ -70,6 +70,7 @@ metadata:
     app: postgresql
     environment: staging
   annotations:
+    vault.hashicorp.com/service-account-token-audience: "vault"
     argocd.argoproj.io/sync-wave: "1" # deploy after vault (wave -2)
 spec:
   serviceName: postgresql-headless
