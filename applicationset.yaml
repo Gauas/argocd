@@ -7,7 +7,7 @@ spec:
   generators:
     - git:
         repoURL: https://github.com/Gauas/argocd.git
-        revision: main
+        revision: master
         directories:
           - path: clusters/*
   template:
@@ -23,7 +23,7 @@ spec:
       project: default
       source:
         repoURL: https://github.com/Gauas/argocd.git
-        targetRevision: main
+        targetRevision: master
         path: "{{path}}/apps"
       destination:
         server: https://kubernetes.default.svc
