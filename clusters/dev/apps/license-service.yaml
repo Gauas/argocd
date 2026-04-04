@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: license-service
+  namespace: dev
+  labels:
+    app: license-service
+    environment: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: license-service
+  template:
+    metadata:
+      labels:
+        app: license-service
+        environment: dev
+    spec:
+      containers:
+        - name: license-service
+          image: ghcr.io/gauas/license-service:dev
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ENV
+              value: dev
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: license-service
+  namespace: dev
+spec:
+  selector:
+    app: license-service
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP

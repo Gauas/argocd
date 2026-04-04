@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-environments
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/Gauas/argocd.git
+        revision: main
+        directories:
+          - path: clusters/*
+  template:
+    metadata:
+      name: "{{path.basename}}-app"
+      namespace: argocd
+      labels:
+        environment: "{{path.basename}}"
+        managed-by: applicationset
+      annotations:
+        argocd.argoproj.io/managed-by: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/Gauas/argocd.git
+        targetRevision: main
+        path: "{{path}}/apps"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{path.basename}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - ApplyOutOfSyncOnly=true
