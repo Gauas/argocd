@@ -96,14 +96,15 @@ spec:
         vault.hashicorp.com/agent-pre-populate-only: "false"
 
         # Vault secret path → injected as /vault/secrets/postgresql.env
-        vault.hashicorp.com/agent-inject-secret-postgresql.env: "platform/data/postgresql/staging"
+        vault.hashicorp.com/agent-inject-secret-postgresql.env: "platform/postgresql/staging"
 
         # Render the secret as shell-sourceable export statements.
+        # NOTE: path does NOT include /data/ prefix → use .Data (not .Data.data)
         vault.hashicorp.com/agent-inject-template-postgresql.env: |
-          {{- with secret "platform/data/postgresql/staging" -}}
-          export POSTGRES_USER="{{ .Data.data.POSTGRES_USER }}"
-          export POSTGRES_PASSWORD="{{ .Data.data.POSTGRES_PASSWORD }}"
-          export POSTGRES_DB="{{ .Data.data.POSTGRES_DB }}"
+          {{- with secret "platform/postgresql/staging" -}}
+          export POSTGRES_USER="{{ .Data.POSTGRES_USER }}"
+          export POSTGRES_PASSWORD="{{ .Data.POSTGRES_PASSWORD }}"
+          export POSTGRES_DB="{{ .Data.POSTGRES_DB }}"
           {{- end }}
 
         # Uncomment below when Vault is configured with TLS (recommended for prod)
@@ -124,10 +125,16 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              # FIX: Wait for Vault Agent to finish writing the secret file
-              # before sourcing it. Prevents CrashLoopBackOff on slow inject.
+              # Stage 1: wait for the file to be created by Vault Agent.
+              # If injector fails entirely, this loop will not run forever —
+              # the pod will eventually be killed by the liveness probe timeout.
+              until [ -f /vault/secrets/postgresql.env ]; do
+                echo "[vault-wait] Waiting for secret file to appear..."
+                sleep 2
+              done
+              # Stage 2: wait until file is non-empty (fully written).
               until [ -s /vault/secrets/postgresql.env ]; do
-                echo "Waiting for Vault Agent to inject secrets..."
+                echo "[vault-wait] Secret file exists but is empty, waiting..."
                 sleep 2
               done
               source /vault/secrets/postgresql.env
