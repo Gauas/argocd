@@ -49,8 +49,6 @@ spec:
       targetPort: 5432
 
 ---
-# FIX: ServiceAccount must exist before StatefulSet is created.
-# Vault Kubernetes auth role binds to this SA name + namespace.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -72,7 +70,7 @@ metadata:
     app: postgresql
     environment: staging
   annotations:
-    argocd.argoproj.io/sync-wave: "1" # deploy after vault (wave -2)
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   serviceName: postgresql-headless
   replicas: 1
@@ -85,36 +83,20 @@ spec:
         app: postgresql
         environment: staging
       annotations:
-        # ── Vault Agent Injector ─────────────────────────────────────────────
-        # Vault agent sidecar is automatically injected by the Vault Injector
-        # webhook running in the vault namespace.
         vault.hashicorp.com/agent-inject: "true"
-
-        # Kubernetes auth role bound to this pod's ServiceAccount.
-        # Role must exist in Vault: vault write auth/kubernetes/role/postgresql ...
-        vault.hashicorp.com/role: "postgresql"
-
-        # Keep agent running after init so secrets are renewed on rotation.
+        vault.hashicorp.com/role: "staging"
         vault.hashicorp.com/agent-pre-populate-only: "false"
-
-        # Vault secret path → injected as /vault/secrets/postgresql.env
-        vault.hashicorp.com/agent-inject-secret-postgresql.env: "platform/postgresql/staging"
-
-        # Render the secret as shell-sourceable export statements.
-        # NOTE: path does NOT include /data/ prefix → use .Data (not .Data.data)
+        vault.hashicorp.com/agent-inject-secret-postgresql.env: "secret/postgresql/staging"
+        # KV v2: metadata is at platform/postgresql/staging,
+        # actual values are nested under .Data.data.*
         vault.hashicorp.com/agent-inject-template-postgresql.env: |
-          {{- with secret "platform/postgresql/staging" -}}
-          export POSTGRES_USER="{{ .Data.POSTGRES_USER }}"
-          export POSTGRES_PASSWORD="{{ .Data.POSTGRES_PASSWORD }}"
-          export POSTGRES_DB="{{ .Data.POSTGRES_DB }}"
+          {{- with secret "secret/postgresql/staging" -}}
+          export POSTGRES_USER="{{ .Data.data.POSTGRES_USER }}"
+          export POSTGRES_PASSWORD="{{ .Data.data.POSTGRES_PASSWORD }}"
+          export POSTGRES_DB="{{ .Data.data.POSTGRES_DB }}"
           {{- end }}
 
-        # Uncomment below when Vault is configured with TLS (recommended for prod)
-        # vault.hashicorp.com/tls-secret: "vault-tls"
-        # ────────────────────────────────────────────────────────────────────
-
     spec:
-      # ServiceAccount must be registered in Vault Kubernetes auth role
       serviceAccountName: postgresql
       securityContext:
         fsGroup: 999
@@ -122,19 +104,13 @@ spec:
       containers:
         - name: postgresql
           image: postgres:16-alpine
-          # Source the Vault-injected env file before starting PostgreSQL.
-          # /vault/secrets/postgresql.env is written by Vault Agent sidecar.
           command: ["/bin/sh", "-c"]
           args:
             - |
-              # Stage 1: wait for the file to be created by Vault Agent.
-              # If injector fails entirely, this loop will not run forever —
-              # the pod will eventually be killed by the liveness probe timeout.
               until [ -f /vault/secrets/postgresql.env ]; do
                 echo "[vault-wait] Waiting for secret file to appear..."
                 sleep 2
               done
-              # Stage 2: wait until file is non-empty (fully written).
               until [ -s /vault/secrets/postgresql.env ]; do
                 echo "[vault-wait] Secret file exists but is empty, waiting..."
                 sleep 2
@@ -159,7 +135,6 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  # FIX: Guard against probe running before secret file is ready.
                   [ -s /vault/secrets/postgresql.env ] || exit 1
                   source /vault/secrets/postgresql.env
                   pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
@@ -197,29 +172,24 @@ spec:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VAULT SECRET SETUP
-# Path : platform/data/postgresql/staging  (KV v2)
+# Engine : platform  (KV v2)
+# Path   : platform/postgresql/staging
 #
-# Required keys to provision in Vault before syncing this manifest:
+# Provision secrets before syncing this manifest:
 #
 #   vault kv put platform/postgresql/staging \
 #     POSTGRES_USER="<db-username>" \
 #     POSTGRES_PASSWORD="<strong-random-password>" \
 #     POSTGRES_DB="<database-name>"
 #
-# Environment variables injected into the container via Vault Agent:
-#
-#   POSTGRES_USER      - PostgreSQL superuser / application username
-#   POSTGRES_PASSWORD  - PostgreSQL password (never commit this to Git)
-#   POSTGRES_DB        - Default database created on first startup
-#
-# Vault policy required (postgresql):
-#   path "platform/data/postgresql/staging" {
+# Vault policy required (staging):
+#   path "platform/data/*" {
 #     capabilities = ["read"]
 #   }
 #
-# Vault Kubernetes auth role required:
-#   bound_service_account_names      = ["postgresql"]
+# Vault Kubernetes auth role (staging):
+#   bound_service_account_names      = ["*"]
 #   bound_service_account_namespaces = ["staging"]
-#   policies                         = ["postgresql"]
+#   policies                         = ["staging"]
 #   ttl                              = "1h"
 # ─────────────────────────────────────────────────────────────────────────────
