@@ -57,8 +57,6 @@ metadata:
   labels:
     app: postgresql
     environment: staging
-  annotations:
-    vault.hashicorp.com/service-account-token-audience: vault
 
 ---
 apiVersion: apps/v1
