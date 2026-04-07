@@ -1,0 +1,151 @@
+# ---
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: config-service
+#   namespace: prod
+#   labels:
+#     app: config-service
+#     environment: prod
+
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: config-service
+#   namespace: prod
+#   labels:
+#     app: config-service
+#     environment: prod
+# spec:
+#   selector:
+#     app: config-service
+#   ports:
+#     - name: http
+#       port: 80
+#       targetPort: 8080
+#   type: ClusterIP
+
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: config-service
+#   namespace: prod
+#   labels:
+#     app: config-service
+#     environment: prod
+#   annotations:
+#     avp.kubernetes.io/path: "secret/config-service/prod"
+# spec:
+#   ingressClassName: nginx
+#   rules:
+#     - host: <DOMAIN_NAME>
+#       http:
+#         paths:
+#           - path: /api/v1/config
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: config-service
+#                 port:
+#                   number: 80
+
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: config-service
+#   namespace: prod
+#   labels:
+#     app: config-service
+#     environment: prod
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "2"
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels:
+#       app: config-service
+#   template:
+#     metadata:
+#       labels:
+#         app: config-service
+#         environment: prod
+#       annotations:
+#         vault.hashicorp.com/agent-inject: "true"
+#         vault.hashicorp.com/role: "prod"
+#         vault.hashicorp.com/agent-pre-populate-only: "false"
+#         vault.hashicorp.com/agent-inject-secret-config-service.env: "secret/config-service/prod"
+#         vault.hashicorp.com/agent-inject-template-config-service.env: |
+#           {{- with secret "secret/config-service/prod" -}}
+#           export PORT="{{ .Data.data.PORT }}"
+#           export DB_URL="{{ .Data.data.DB_URL }}"
+#           export CONFIG_SECRET_KEY="{{ .Data.data.CONFIG_SECRET_KEY }}"
+#           {{- end }}
+#     spec:
+#       serviceAccountName: config-service
+#       containers:
+#         - name: config-service
+#           image: ghcr.io/gauas/config-service:latest
+#           command: ["/bin/sh", "-c"]
+#           args:
+#             - |
+#               until [ -f /vault/secrets/config-service.env ]; do
+#                 echo "[vault-wait] Waiting for secret file to appear..."
+#                 sleep 2
+#               done
+#               until [ -s /vault/secrets/config-service.env ]; do
+#                 echo "[vault-wait] Secret file exists but is empty, waiting..."
+#                 sleep 2
+#               done
+#               source /vault/secrets/config-service.env
+#               exec ./app
+#           ports:
+#             - containerPort: 8080
+#           resources:
+#             requests:
+#               memory: "64Mi"
+#               cpu: "50m"
+#             limits:
+#               memory: "256Mi"
+#               cpu: "500m"
+#           readinessProbe:
+#             httpGet:
+#               path: /health
+#               port: 8080
+#             initialDelaySeconds: 10
+#             periodSeconds: 5
+#             failureThreshold: 3
+#           livenessProbe:
+#             httpGet:
+#               path: /health
+#               port: 8080
+#             initialDelaySeconds: 30
+#             periodSeconds: 10
+#             failureThreshold: 3
+
+# # ─────────────────────────────────────────────────────────────────────────────
+# # VAULT SECRET SETUP
+# # Engine : secret  (KV v2)
+# # Path   : secret/config-service/prod
+# #
+# # Provision secrets before syncing this manifest:
+# #
+# #   vault kv put secret/config-service/prod \
+# #     PORT="8080" \
+# #     DB_URL="postgres://<user>:<password>@postgresql:5432/config_service?sslmode=disable" \
+# #     CONFIG_SECRET_KEY="<strong-prod-secret>" \
+# #     DOMAIN_NAME="<prod-domain-name>"
+# #
+# # Vault policy required (prod):
+# #   path "secret/data/*" {
+# #     capabilities = ["read"]
+# #   }
+# #
+# # Vault Kubernetes auth role (prod):
+# #   bound_service_account_names      = ["*"]
+# #   bound_service_account_namespaces = ["prod"]
+# #   policies                         = ["prod"]
+# #   ttl                              = "1h"
+# # ─────────────────────────────────────────────────────────────────────────────

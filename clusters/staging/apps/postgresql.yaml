@@ -85,13 +85,12 @@ spec:
         vault.hashicorp.com/role: "staging"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-postgresql.env: "secret/postgresql/staging"
-        # KV v2: metadata is at platform/postgresql/staging,
-        # actual values are nested under .Data.data.*
+        # KV v1: values are accessed directly under .Data.*
         vault.hashicorp.com/agent-inject-template-postgresql.env: |
           {{- with secret "secret/postgresql/staging" -}}
-          export POSTGRES_USER="{{ .Data.data.POSTGRES_USER }}"
-          export POSTGRES_PASSWORD="{{ .Data.data.POSTGRES_PASSWORD }}"
-          export POSTGRES_DB="{{ .Data.data.POSTGRES_DB }}"
+          export POSTGRES_USER="{{ .Data.POSTGRES_USER }}"
+          export POSTGRES_PASSWORD="{{ .Data.POSTGRES_PASSWORD }}"
+          export POSTGRES_DB="{{ .Data.POSTGRES_DB }}"
           {{- end }}
 
     spec:
@@ -170,18 +169,18 @@ spec:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VAULT SECRET SETUP
-# Engine : platform  (KV v2)
-# Path   : platform/postgresql/staging
+# Engine : secret  (KV v1)
+# Path   : secret/postgresql/staging
 #
 # Provision secrets before syncing this manifest:
 #
-#   vault kv put platform/postgresql/staging \
+#   vault kv put secret/postgresql/staging \
 #     POSTGRES_USER="<db-username>" \
 #     POSTGRES_PASSWORD="<strong-random-password>" \
 #     POSTGRES_DB="<database-name>"
 #
 # Vault policy required (staging):
-#   path "platform/data/*" {
+#   path "secret/*" {
 #     capabilities = ["read"]
 #   }
 #
