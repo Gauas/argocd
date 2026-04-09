@@ -1,0 +1,165 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: license-service
+  namespace: staging
+  labels:
+    app: license-service
+    environment: staging
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: license-service
+  namespace: staging
+  labels:
+    app: license-service
+    environment: staging
+spec:
+  selector:
+    app: license-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: license-service
+  namespace: staging
+  labels:
+    app: license-service
+    environment: staging
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.gauas.com
+      http:
+        paths:
+          - path: /api/v1/license
+            pathType: Prefix
+            backend:
+              service:
+                name: license-service
+                port:
+                  number: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: license-service
+  namespace: staging
+  labels:
+    app: license-service
+    environment: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: license-service
+  template:
+    metadata:
+      labels:
+        app: license-service
+        environment: staging
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "staging"
+        vault.hashicorp.com/agent-pre-populate-only: "false"
+        # env vars
+        vault.hashicorp.com/agent-inject-secret-license-service.env: "secret/license-service/staging"
+        vault.hashicorp.com/agent-inject-template-license-service.env: |
+          {{- with secret "secret/license-service/staging" -}}
+          export ENVIRONMENT="{{ .Data.data.ENVIRONMENT }}"
+          export CONFIG_SERVICE_URL="{{ .Data.data.CONFIG_SERVICE_URL }}"
+          export CONFIG_SECRET_KEY="{{ .Data.data.CONFIG_SECRET_KEY }}"
+          export PRIVATE_KEY_PATH="/vault/secrets/private.pem"
+          export PUBLIC_KEY_PATH="/vault/secrets/public.pem"
+          {{- end }}
+        # private key file
+        vault.hashicorp.com/agent-inject-secret-private.pem: "secret/license-service/staging"
+        vault.hashicorp.com/agent-inject-template-private.pem: |
+          {{- with secret "secret/license-service/staging" -}}
+          {{ .Data.data.PRIVATE_KEY }}
+          {{- end }}
+        # public key file
+        vault.hashicorp.com/agent-inject-secret-public.pem: "secret/license-service/staging"
+        vault.hashicorp.com/agent-inject-template-public.pem: |
+          {{- with secret "secret/license-service/staging" -}}
+          {{ .Data.data.PUBLIC_KEY }}
+          {{- end }}
+    spec:
+      serviceAccountName: license-service
+      containers:
+        - name: license-service
+          image: gauaslab/license-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until [ -f /vault/secrets/license-service.env ]; do
+                echo "[vault-wait] Waiting for secret file..."
+                sleep 2
+              done
+              until [ -s /vault/secrets/license-service.env ]; do
+                echo "[vault-wait] Secret file is empty, waiting..."
+                sleep 2
+              done
+              source /vault/secrets/license-service.env
+              exec ./app
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VAULT SECRET SETUP
+# Engine : secret  (KV v2)
+# Path   : secret/license-service/staging
+#
+# Provision secrets before syncing this manifest:
+#
+#   vault kv put secret/license-service/staging \
+#     ENVIRONMENT="staging" \
+#     CONFIG_SERVICE_URL="http://config-service.staging.svc.cluster.local" \
+#     CONFIG_SECRET_KEY="<secret-key-for-config-service>" \
+#     PRIVATE_KEY="$(cat /path/to/private.pem)" \
+#     PUBLIC_KEY="$(cat /path/to/public.pem)"
+#
+# Vault policy required (staging):
+#   path "secret/data/*" {
+#     capabilities = ["read"]
+#   }
+#
+# Vault Kubernetes auth role (staging):
+#   bound_service_account_names      = ["*"]
+#   bound_service_account_namespaces = ["staging"]
+#   policies                         = ["staging"]
+#   ttl                              = "1h"
+# ─────────────────────────────────────────────────────────────────────────────
