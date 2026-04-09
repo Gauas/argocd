@@ -78,9 +78,9 @@ spec:
         vault.hashicorp.com/agent-inject-secret-license-service.env: "secret/license-service/staging"
         vault.hashicorp.com/agent-inject-template-license-service.env: |
           {{- with secret "secret/license-service/staging" -}}
-          export ENVIRONMENT="{{ .Data.data.ENVIRONMENT }}"
-          export CONFIG_SERVICE_URL="{{ .Data.data.CONFIG_SERVICE_URL }}"
-          export CONFIG_SECRET_KEY="{{ .Data.data.CONFIG_SECRET_KEY }}"
+          export ENVIRONMENT="{{ .Data.ENVIRONMENT }}"
+          export CONFIG_SERVICE_URL="{{ .Data.CONFIG_SERVICE_URL }}"
+          export CONFIG_SECRET_KEY="{{ .Data.CONFIG_SECRET_KEY }}"
           export PRIVATE_KEY_PATH="/vault/secrets/private.pem"
           export PUBLIC_KEY_PATH="/vault/secrets/public.pem"
           {{- end }}
@@ -88,13 +88,13 @@ spec:
         vault.hashicorp.com/agent-inject-secret-private.pem: "secret/license-service/staging"
         vault.hashicorp.com/agent-inject-template-private.pem: |
           {{- with secret "secret/license-service/staging" -}}
-          {{ .Data.data.PRIVATE_KEY }}
+          {{ .Data.PRIVATE_KEY }}
           {{- end }}
         # public key file
         vault.hashicorp.com/agent-inject-secret-public.pem: "secret/license-service/staging"
         vault.hashicorp.com/agent-inject-template-public.pem: |
           {{- with secret "secret/license-service/staging" -}}
-          {{ .Data.data.PUBLIC_KEY }}
+          {{ .Data.PUBLIC_KEY }}
           {{- end }}
     spec:
       serviceAccountName: license-service

@@ -77,9 +77,9 @@ spec:
         vault.hashicorp.com/agent-inject-secret-config-service.env: "secret/config-service/staging"
         vault.hashicorp.com/agent-inject-template-config-service.env: |
           {{- with secret "secret/config-service/staging" -}}
-          export PORT="{{ .Data.data.PORT }}"
-          export DB_URL="{{ .Data.data.DB_URL }}"
-          export CONFIG_SECRET_KEY="{{ .Data.data.CONFIG_SECRET_KEY }}"
+          export PORT="{{ .Data.PORT }}"
+          export DB_URL="{{ .Data.DB_URL }}"
+          export CONFIG_SECRET_KEY="{{ .Data.CONFIG_SECRET_KEY }}"
           {{- end }}
     spec:
       serviceAccountName: config-service
@@ -125,7 +125,7 @@ spec:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VAULT SECRET SETUP
-# Engine : secret  (KV v2)
+# Engine : secret  (KV v1)
 # Path   : secret/config-service/staging
 #
 # Provision secrets before syncing this manifest:
@@ -133,10 +133,10 @@ spec:
 #   vault kv put secret/config-service/staging \
 #     PORT="8080" \
 #     DB_URL="postgres://<user>:<password>@postgresql:5432/config_service?sslmode=disable" \
-#     CONFIG_SECRET_KEY="<strong-random-secret>" \
+#     CONFIG_SECRET_KEY="<strong-random-secret>"
 #
 # Vault policy required (staging):
-#   path "secret/data/*" {
+#   path "secret/*" {
 #     capabilities = ["read"]
 #   }
 #
