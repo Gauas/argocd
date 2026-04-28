@@ -153,7 +153,7 @@ spec:
 #     PUBLIC_KEY="$(cat /path/to/public.pem)"
 #
 # Vault policy required (staging):
-#   path "secret/data/*" {
+#   path "secret/model/*" {
 #     capabilities = ["read"]
 #   }
 #

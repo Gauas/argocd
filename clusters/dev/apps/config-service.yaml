@@ -79,9 +79,9 @@
 #         vault.hashicorp.com/agent-inject-secret-config-service.env: "secret/config-service/dev"
 #         vault.hashicorp.com/agent-inject-template-config-service.env: |
 #           {{- with secret "secret/config-service/dev" -}}
-#           export PORT="{{ .Data.data.PORT }}"
-#           export DB_URL="{{ .Data.data.DB_URL }}"
-#           export CONFIG_SECRET_KEY="{{ .Data.data.CONFIG_SECRET_KEY }}"
+#           export PORT="{{ .Data.model.PORT }}"
+#           export DB_URL="{{ .Data.model.DB_URL }}"
+#           export CONFIG_SECRET_KEY="{{ .Data.model.CONFIG_SECRET_KEY }}"
 #           {{- end }}
 #     spec:
 #       serviceAccountName: config-service
@@ -139,7 +139,7 @@
 # #     DOMAIN_NAME="<dev-domain-name>"
 # #
 # # Vault policy required (dev):
-# #   path "secret/data/*" {
+# #   path "secret/model/*" {
 # #     capabilities = ["read"]
 # #   }
 # #
