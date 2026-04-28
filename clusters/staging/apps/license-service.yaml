@@ -43,7 +43,7 @@ spec:
     - host: api.gauas.com
       http:
         paths:
-          - path: /api/v1/license
+          - path: /v1/license
             pathType: Prefix
             backend:
               service:
@@ -125,14 +125,14 @@ spec:
               cpu: "200m"
           readinessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /v1/license/health
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /v1/license/health
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 10
