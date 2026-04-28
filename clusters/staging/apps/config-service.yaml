@@ -86,6 +86,7 @@ spec:
       containers:
         - name: config-service
           image: gauaslab/config-service:latest
+          imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
           args:
             - |

@@ -101,6 +101,7 @@ spec:
       containers:
         - name: license-service
           image: gauaslab/license-service:latest
+          imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
           args:
             - |
