@@ -2,24 +2,24 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: config-service
+  name: license-service
   namespace: staging
   labels:
-    app: config-service
+    app: license-service
     environment: staging
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: config-service
+  name: license-service
   namespace: staging
   labels:
-    app: config-service
+    app: license-service
     environment: staging
 spec:
   selector:
-    app: config-service
+    app: license-service
   ports:
     - name: http
       port: 80
@@ -30,10 +30,10 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: config-service
+  name: license-service
   namespace: staging
   labels:
-    app: config-service
+    app: license-service
     environment: staging
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -43,11 +43,11 @@ spec:
     - host: api.gauas.com
       http:
         paths:
-          - path: /v1/config
+          - path: /v1/license
             pathType: Prefix
             backend:
               service:
-                name: config-service
+                name: license-service
                 port:
                   number: 80
 
@@ -55,53 +55,68 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: config-service
+  name: license-service
   namespace: staging
   labels:
-    app: config-service
+    app: license-service
     environment: staging
   annotations:
-    argocd-image-updater.argoproj.io/image-list: license=gauaslab/config-service
+    argocd-image-updater.argoproj.io/image-list: license=gauaslab/license-service
     argocd-image-updater.argoproj.io/license.update-strategy: digest
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: config-service
+      app: license-service
   template:
     metadata:
       labels:
-        app: config-service
+        app: license-service
         environment: staging
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "staging"
         vault.hashicorp.com/agent-pre-populate-only: "false"
-        vault.hashicorp.com/agent-inject-secret-config-service.env: "secret/config-service/staging"
-        vault.hashicorp.com/agent-inject-template-config-service.env: |
-          {{- with secret "secret/config-service/staging" -}}
-          export PORT="{{ .Data.PORT }}"
-          export DB_URL="{{ .Data.DB_URL }}"
+        # env vars
+        vault.hashicorp.com/agent-inject-secret-license-service.env: "secret/license-service/staging"
+        vault.hashicorp.com/agent-inject-template-license-service.env: |
+          {{- with secret "secret/license-service/staging" -}}
+          export ENVIRONMENT="{{ .Data.ENVIRONMENT }}"
+          export CONFIG_SERVICE_URL="{{ .Data.CONFIG_SERVICE_URL }}"
           export CONFIG_SECRET_KEY="{{ .Data.CONFIG_SECRET_KEY }}"
+          export PRIVATE_KEY_PATH="/vault/secrets/private.pem"
+          export PUBLIC_KEY_PATH="/vault/secrets/public.pem"
+          {{- end }}
+        # private key file
+        vault.hashicorp.com/agent-inject-secret-private.pem: "secret/license-service/staging"
+        vault.hashicorp.com/agent-inject-template-private.pem: |
+          {{- with secret "secret/license-service/staging" -}}
+          {{ .Data.PRIVATE_KEY }}
+          {{- end }}
+        # public key file
+        vault.hashicorp.com/agent-inject-secret-public.pem: "secret/license-service/staging"
+        vault.hashicorp.com/agent-inject-template-public.pem: |
+          {{- with secret "secret/license-service/staging" -}}
+          {{ .Data.PUBLIC_KEY }}
           {{- end }}
     spec:
-      serviceAccountName: config-service
+      serviceAccountName: license-service
       containers:
-        - name: config-service
-          image: gauaslab/config-service:latest
+        - name: license-service
+          image: gauaslab/license-service:latest
           imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until [ -f /vault/secrets/config-service.env ]; do
-                echo "[vault-wait] Waiting for secret file to appear..."
+              until [ -f /vault/secrets/license-service.env ]; do
+                echo "[vault-wait] Waiting for secret file..."
                 sleep 2
               done
-              until [ -s /vault/secrets/config-service.env ]; do
-                echo "[vault-wait] Secret file exists but is empty, waiting..."
+              until [ -s /vault/secrets/license-service.env ]; do
+                echo "[vault-wait] Secret file is empty, waiting..."
                 sleep 2
               done
-              source /vault/secrets/config-service.env
+              source /vault/secrets/license-service.env
               exec ./app
           ports:
             - containerPort: 8080
@@ -114,14 +129,14 @@ spec:
               cpu: "200m"
           readinessProbe:
             httpGet:
-              path: /v1/config/health
+              path: /v1/license/health
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /v1/config/health
+              path: /v1/license/health
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 10
@@ -129,18 +144,20 @@ spec:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VAULT SECRET SETUP
-# Engine : secret  (KV v1)
-# Path   : secret/config-service/staging
+# Engine : secret  (KV v2)
+# Path   : secret/license-service/staging
 #
 # Provision secrets before syncing this manifest:
 #
-#   vault kv put secret/config-service/staging \
-#     PORT="8080" \
-#     DB_URL="postgres://<user>:<password>@postgresql:5432/config_service?sslmode=disable" \
-#     CONFIG_SECRET_KEY="<strong-random-secret>"
+#   vault kv put secret/license-service/staging \
+#     ENVIRONMENT="staging" \
+#     CONFIG_SERVICE_URL="http://config-service.staging.svc.cluster.local" \
+#     CONFIG_SECRET_KEY="<secret-key-for-config-service>" \
+#     PRIVATE_KEY="$(cat /path/to/private.pem)" \
+#     PUBLIC_KEY="$(cat /path/to/public.pem)"
 #
 # Vault policy required (staging):
-#   path "secret/*" {
+#   path "secret/model/*" {
 #     capabilities = ["read"]
 #   }
 #

@@ -8,7 +8,7 @@ metadata:
     app: postgresql
     environment: staging
 data:
-  PGDATA: /var/lib/postgresql/data/pgdata
+  PGDATA: /var/lib/postgresql/model/pgdata
 
 ---
 apiVersion: v1

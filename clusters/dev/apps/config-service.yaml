@@ -140,6 +140,7 @@
 # #
 # # Vault policy required (dev):
 # #   path "secret/data/*" {
+# #   path "secret/model/*" {
 # #     capabilities = ["read"]
 # #   }
 # #
