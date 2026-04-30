@@ -186,7 +186,7 @@ data:
     listen_port = 6432
 
     auth_type = plain
-    auth_file = /etc/pgbouncer/userlist.txt
+    auth_file = /var/run/pgbouncer/userlist.txt
 
     pool_mode = transaction
     max_client_conn = 1000
@@ -231,7 +231,7 @@ spec:
               until [ -s /vault/secrets/postgresql.env ]; do sleep 2; done
               source /vault/secrets/postgresql.env
 
-              echo "\"$POSTGRES_USER\" \"$POSTGRES_PASSWORD\"" > /etc/pgbouncer/userlist.txt
+              echo "\"$POSTGRES_USER\" \"$POSTGRES_PASSWORD\"" > /var/run/pgbouncer/userlist.txt
 
               exec pgbouncer /etc/pgbouncer/pgbouncer.ini
           ports:
@@ -242,7 +242,11 @@ spec:
             initialDelaySeconds: 5
           volumeMounts:
             - name: config
-              mountPath: /etc/pgbouncer
+              mountPath: /etc/pgbouncer/pgbouncer.ini
+              subPath: pgbouncer.ini
+
+            - name: runtime
+              mountPath: /var/run/pgbouncer
           resources:
             requests:
               cpu: 100m
@@ -254,6 +258,9 @@ spec:
         - name: config
           configMap:
             name: pgbouncer-config
+
+        - name: runtime
+          emptyDir: { }
 
 ---
 apiVersion: v1
