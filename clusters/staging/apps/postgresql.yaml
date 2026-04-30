@@ -8,7 +8,7 @@ metadata:
     app: postgresql
     environment: staging
 data:
-  PGDATA: /var/lib/postgresql/model/pgdata
+  PGDATA: /var/lib/postgresql/data/pgdata
 
 ---
 apiVersion: v1
@@ -166,7 +166,191 @@ spec:
         resources:
           requests:
             storage: 10Gi
+---
+# ─────────────────────────────────────────────────────────────
+# PGBOUNCER
+# ─────────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+  namespace: staging
+data:
+  pgbouncer.ini: |
+    [databases]
+    * = host=postgresql port=5432
 
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 6432
+
+    auth_type = md5
+    auth_file = /etc/pgbouncer/userlist.txt
+
+    pool_mode = transaction
+    max_client_conn = 1000
+    default_pool_size = 50
+
+    ignore_startup_parameters = extra_float_digits
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "staging"
+        vault.hashicorp.com/agent-inject-secret-postgresql.env: "secret/postgresql/staging"
+        vault.hashicorp.com/agent-inject-template-postgresql.env: |
+          {{- with secret "secret/postgresql/staging" -}}
+          export POSTGRES_USER="{{ .Data.POSTGRES_USER }}"
+          export POSTGRES_PASSWORD="{{ .Data.POSTGRES_PASSWORD }}"
+          export POSTGRES_DB="{{ .Data.POSTGRES_DB }}"
+          {{- end }}
+    spec:
+      containers:
+        - name: pgbouncer
+          image: edoburu/pgbouncer
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              echo "waiting vault..."
+              until [ -s /vault/secrets/postgresql.env ]; do sleep 2; done
+              source /vault/secrets/postgresql.env
+
+              HASH=$(echo -n "${POSTGRES_PASSWORD}${POSTGRES_USER}" | md5sum | awk '{print $1}')
+              echo "\"$POSTGRES_USER\" \"md5$HASH\"" > /etc/pgbouncer/userlist.txt
+
+              exec pgbouncer /etc/pgbouncer/pgbouncer.ini
+          ports:
+            - containerPort: 6432
+          readinessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pgbouncer
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: pgbouncer-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer
+  namespace: staging
+spec:
+  selector:
+    app: pgbouncer
+  ports:
+    - port: 6432
+
+# ─────────────────────────────────────────────────────────────
+# HAPROXY
+# ─────────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-config
+  namespace: staging
+data:
+  haproxy.cfg: |
+    global
+      maxconn 2000
+
+    defaults
+      mode tcp
+      timeout connect 5s
+      timeout client  1m
+      timeout server  1m
+
+    frontend postgres
+      bind *:5432
+      default_backend db_pool
+
+    backend db_pool
+      option tcp-check
+      tcp-check connect
+      server pgbouncer pgbouncer:6432 check
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: haproxy
+  template:
+    metadata:
+      labels:
+        app: haproxy
+    spec:
+      containers:
+        - name: haproxy
+          image: haproxy:2.9
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/etc/haproxy/haproxy.cfg
+              subPath: haproxy.cfg
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: haproxy-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database
+  namespace: staging
+spec:
+  type: NodePort
+  selector:
+    app: haproxy
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30032
 # ─────────────────────────────────────────────────────────────────────────────
 # VAULT SECRET SETUP
 # Engine : secret  (KV v1)
