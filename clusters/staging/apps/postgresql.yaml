@@ -220,6 +220,7 @@ spec:
           export POSTGRES_DB="{{ .Data.POSTGRES_DB }}"
           {{- end }}
     spec:
+      serviceAccountName: postgresql
       containers:
         - name: pgbouncer
           image: edoburu/pgbouncer
