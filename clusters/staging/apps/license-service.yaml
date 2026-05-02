@@ -84,7 +84,7 @@ spec:
           {{- with secret "secret/license-service/staging" -}}
           export ENVIRONMENT="{{ .Data.ENVIRONMENT }}"
           export CONFIG_SERVICE_URL="{{ .Data.CONFIG_SERVICE_URL }}"
-          export CONFIG_SECRET_KEY="{{ .Data.CONFIG_SECRET_KEY }}"
+          export SECRET_KEY="{{ .Data.SECRET_KEY }}"
           export PRIVATE_KEY_PATH="/vault/secrets/private.pem"
           export PUBLIC_KEY_PATH="/vault/secrets/public.pem"
           {{- end }}

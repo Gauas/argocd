@@ -83,7 +83,7 @@ spec:
           {{- with secret "secret/config-service/staging" -}}
           export PORT="{{ .Data.PORT }}"
           export DB_URL="{{ .Data.DB_URL }}"
-          export CONFIG_SECRET_KEY="{{ .Data.CONFIG_SECRET_KEY }}"
+          export SECRET_KEY="{{ .Data.SECRET_KEY }}"
           {{- end }}
     spec:
       serviceAccountName: config-service

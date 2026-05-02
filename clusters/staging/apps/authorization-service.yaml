@@ -37,6 +37,7 @@ metadata:
     environment: staging
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: staging-cors@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -82,7 +83,6 @@ spec:
           {{- with secret "secret/authorization-service/staging" -}}
           export ENVIRONMENT="{{ .Data.ENVIRONMENT }}"
           export CONFIG_SERVICE_URL="{{ .Data.CONFIG_SERVICE_URL }}"
-          export CONFIG_SECRET_KEY="{{ .Data.CONFIG_SECRET_KEY }}"
           export SECRET_KEY="{{ .Data.SECRET_KEY }}"
           {{- end }}
     spec:
