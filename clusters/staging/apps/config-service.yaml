@@ -37,6 +37,7 @@ metadata:
     environment: staging
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: staging-cors@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -61,8 +62,8 @@ metadata:
     app: config-service
     environment: staging
   annotations:
-    argocd-image-updater.argoproj.io/image-list: license=gauaslab/config-service
-    argocd-image-updater.argoproj.io/license.update-strategy: digest
+    argocd-image-updater.argoproj.io/image-list: config=gauaslab/config-service
+    argocd-image-updater.argoproj.io/config.update-strategy: digest
 spec:
   replicas: 1
   selector:
