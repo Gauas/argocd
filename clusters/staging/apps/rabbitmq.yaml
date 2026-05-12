@@ -1,0 +1,286 @@
+---
+# ─────────────────────────────────────────────────────────────
+# RABBITMQ
+# Message broker — AMQP 0-9-1 / AMQP 1.0
+# Port  : 5672  (AMQP)
+# Port  : 15672 (Management UI)
+# ─────────────────────────────────────────────────────────────
+#
+# VAULT SECRET SETUP
+# Engine : secret  (KV v1)
+# Path   : secret/rabbitmq/staging
+#
+# Provision secrets before syncing this manifest:
+#
+#   vault kv put secret/rabbitmq/staging \
+#     RABBITMQ_DEFAULT_USER="<username>" \
+#     RABBITMQ_DEFAULT_PASS="<strong-random-password>"
+#
+# Vault policy required (staging):
+#   path "secret/*" {
+#     capabilities = ["read"]
+#   }
+#
+# Vault Kubernetes auth role (staging):
+#   bound_service_account_names      = ["*"]
+#   bound_service_account_namespaces = ["staging"]
+#   policies                         = ["staging"]
+#   ttl                              = "1h"
+# ─────────────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rabbitmq
+  namespace: staging
+  labels:
+    app: rabbitmq
+    environment: staging
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rabbitmq
+  namespace: staging
+  labels:
+    app: rabbitmq
+    environment: staging
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rabbitmq
+  namespace: staging
+  labels:
+    app: rabbitmq
+    environment: staging
+subjects:
+  - kind: ServiceAccount
+    name: rabbitmq
+    namespace: staging
+roleRef:
+  kind: Role
+  name: rabbitmq
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: staging
+  labels:
+    app: rabbitmq
+    environment: staging
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-headless
+  namespace: staging
+  labels:
+    app: rabbitmq
+    environment: staging
+spec:
+  clusterIP: None
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+    - name: epmd
+      port: 4369
+      targetPort: 4369
+    - name: clustering
+      port: 25672
+      targetPort: 25672
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: staging
+  labels:
+    app: rabbitmq
+    environment: staging
+data:
+  enabled_plugins: |
+    [rabbitmq_management,rabbitmq_peer_discovery_k8s].
+  rabbitmq.conf: |
+    ## Clustering
+    cluster_formation.peer_discovery_backend  = rabbit_peer_discovery_k8s
+    cluster_formation.k8s.host                = kubernetes.default.svc.cluster.local
+    cluster_formation.k8s.address_type        = hostname
+    cluster_formation.node_cleanup.interval   = 30
+    cluster_formation.node_cleanup.only_log_warning = true
+    cluster_partition_handling                = autoheal
+
+    ## Networking
+    listeners.tcp.default = 5672
+
+    ## Management
+    management.tcp.port = 15672
+
+    ## Logging
+    log.console.level = info
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: staging
+  labels:
+    app: rabbitmq
+    environment: staging
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  serviceName: rabbitmq-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        environment: staging
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "staging"
+        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-inject-secret-rabbitmq.env: "secret/rabbitmq/staging"
+        # KV v1: values are accessed directly under .Data.*
+        vault.hashicorp.com/agent-inject-template-rabbitmq.env: |
+          {{- with secret "secret/rabbitmq/staging" -}}
+          export RABBITMQ_DEFAULT_USER="{{ .Data.RABBITMQ_DEFAULT_USER }}"
+          export RABBITMQ_DEFAULT_PASS="{{ .Data.RABBITMQ_DEFAULT_PASS }}"
+          {{- end }}
+    spec:
+      serviceAccountName: rabbitmq
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999
+
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13-management-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until [ -f /vault/secrets/rabbitmq.env ]; do
+                echo "[vault-wait] Waiting for secret file to appear..."
+                sleep 2
+              done
+              until [ -s /vault/secrets/rabbitmq.env ]; do
+                echo "[vault-wait] Secret file exists but is empty, waiting..."
+                sleep 2
+              done
+              source /vault/secrets/rabbitmq.env
+              # fsGroup re-applies g+rwX on every pod restart, making .erlang.cookie
+              # group-readable which Erlang rejects. Fix permissions before starting.
+              if [ -f /var/lib/rabbitmq/.erlang.cookie ]; then
+                chmod 0400 /var/lib/rabbitmq/.erlang.cookie
+              fi
+              exec docker-entrypoint.sh rabbitmq-server
+          ports:
+            - name: amqp
+              containerPort: 5672
+            - name: management
+              containerPort: 15672
+            - name: epmd
+              containerPort: 4369
+            - name: clustering
+              containerPort: 25672
+          env:
+            - name: RABBITMQ_NODENAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: K8S_SERVICE_NAME
+              value: rabbitmq-headless
+            - name: K8S_HOSTNAME_SUFFIX
+              value: .rabbitmq-headless.staging.svc.cluster.local
+            - name: RABBITMQ_USE_LONGNAME
+              value: "true"
+            - name: RABBITMQ_ERLANG_COOKIE
+              value: "staging-rabbitmq-erlang-cookie"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "150m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+            - name: rabbitmq-config
+              mountPath: /etc/rabbitmq/rabbitmq.conf
+              subPath: rabbitmq.conf
+            - name: rabbitmq-config
+              mountPath: /etc/rabbitmq/enabled_plugins
+              subPath: enabled_plugins
+      volumes:
+        - name: rabbitmq-config
+          configMap:
+            name: rabbitmq-config
+
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+        labels:
+          app: rabbitmq
+          environment: staging
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
