@@ -381,3 +381,134 @@ spec:
 #   policies                         = ["staging"]
 #   ttl                              = "1h"
 # ─────────────────────────────────────────────────────────────────────────────
+
+---
+# ─────────────────────────────────────────────────────────────
+# PGADMIN
+# Web UI for PostgreSQL administration
+# Port  : 80 (container) / 80 (service)
+# ─────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin
+  namespace: staging
+  labels:
+    app: pgadmin
+    environment: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgadmin
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+        environment: staging
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "staging"
+        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-inject-secret-pgadmin.env: "secret/pgadmin/staging"
+        vault.hashicorp.com/agent-inject-template-pgadmin.env: |
+          {{- with secret "secret/pgadmin/staging" -}}
+          export PGADMIN_DEFAULT_EMAIL="{{ .Data.PGADMIN_DEFAULT_EMAIL }}"
+          export PGADMIN_DEFAULT_PASSWORD="{{ .Data.PGADMIN_DEFAULT_PASSWORD }}"
+          {{- end }}
+    spec:
+      containers:
+        - name: pgadmin
+          image: dpage/pgadmin4:9.3
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until [ -s /vault/secrets/pgadmin.env ]; do
+                echo "[vault-wait] Waiting pgadmin secret..."
+                sleep 2
+              done
+              source /vault/secrets/pgadmin.env
+              exec /entrypoint.sh
+          env:
+            - name: PGADMIN_LISTEN_PORT
+              value: "80"
+            - name: PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION
+              value: "False"
+            - name: PGADMIN_CONFIG_WTF_CSRF_ENABLED
+              value: "True"
+          ports:
+            - containerPort: 80
+              name: http
+          readinessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgadmin
+  namespace: staging
+  labels:
+    app: pgadmin
+    environment: staging
+spec:
+  selector:
+    app: pgadmin
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pgadmin
+  namespace: staging
+  labels:
+    app: pgadmin
+    environment: staging
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: staging-cors@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: pgadmin.gauas.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pgadmin
+                port:
+                  number: 80
+
+---
+# PGADMIN VAULT SECRET SETUP
+# Engine : secret  (KV v1)
+# Path   : secret/pgadmin/staging
+#
+# Provision secrets before syncing this manifest:
+#
+#   vault kv put secret/pgadmin/staging \
+#     PGADMIN_DEFAULT_EMAIL="<admin-email>" \
+#     PGADMIN_DEFAULT_PASSWORD="<strong-random-password>"
