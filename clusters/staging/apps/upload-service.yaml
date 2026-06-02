@@ -78,11 +78,12 @@ spec:
         vault.hashicorp.com/role: "staging"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-upload-service.env: "secret/upload-service/staging"
+        vault.hashicorp.com/agent-inject-file-upload-service.env: ".env"
         vault.hashicorp.com/agent-inject-template-upload-service.env: |
           {{- with secret "secret/upload-service/staging" -}}
-          export ENVIRONMENT="{{ .Data.ENVIRONMENT }}"
-          export CONFIG_SERVICE_URL="{{ .Data.CONFIG_SERVICE_URL }}"
-          export SECRET_KEY="{{ .Data.SECRET_KEY }}"
+          {{- range $key, $value := .Data }}
+          export {{ $key }}={{ printf "%q" $value }}
+          {{- end }}
           {{- end }}
     spec:
       serviceAccountName: upload-service
@@ -93,15 +94,18 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until [ -f /vault/secrets/upload-service.env ]; do
+              ENV_FILE="/vault/secrets/.env"
+              until [ -f "$ENV_FILE" ]; do
                 echo "[vault-wait] Waiting for secret file..."
                 sleep 2
               done
-              until [ -s /vault/secrets/upload-service.env ]; do
+              until [ -s "$ENV_FILE" ]; do
                 echo "[vault-wait] Secret file is empty, waiting..."
                 sleep 2
               done
-              source /vault/secrets/upload-service.env
+              set -a
+              . "$ENV_FILE"
+              set +a
               exec ./app
           ports:
             - containerPort: 8080
@@ -127,10 +131,8 @@ spec:
             periodSeconds: 10
             failureThreshold: 3
 
-# vault kv put secret/upload-service/staging \
-#   ENVIRONMENT="staging" \
-#   CONFIG_SERVICE_URL="http://config-service.staging.svc.cluster.local" \
-#   SECRET_KEY="<shared-secret-key>"
+# Put the required runtime env keys for this service at
+# `secret/upload-service/staging` before syncing this manifest.
 
 ---
 apiVersion: v1
@@ -177,11 +179,12 @@ spec:
         vault.hashicorp.com/role: "staging"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-upload-service.env: "secret/upload-service/staging"
+        vault.hashicorp.com/agent-inject-file-upload-service.env: ".env"
         vault.hashicorp.com/agent-inject-template-upload-service.env: |
           {{- with secret "secret/upload-service/staging" -}}
-          export ENVIRONMENT="{{ .Data.ENVIRONMENT }}"
-          export CONFIG_SERVICE_URL="{{ .Data.CONFIG_SERVICE_URL }}"
-          export SECRET_KEY="{{ .Data.SECRET_KEY }}"
+          {{- range $key, $value := .Data }}
+          export {{ $key }}={{ printf "%q" $value }}
+          {{- end }}
           {{- end }}
         vault.hashicorp.com/agent-requests-cpu: "25m"
         vault.hashicorp.com/agent-limits-cpu: "100m"
@@ -196,15 +199,18 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until [ -f /vault/secrets/upload-service.env ]; do
+              ENV_FILE="/vault/secrets/.env"
+              until [ -f "$ENV_FILE" ]; do
                 echo "[vault-wait] Waiting for secret file..."
                 sleep 2
               done
-              until [ -s /vault/secrets/upload-service.env ]; do
+              until [ -s "$ENV_FILE" ]; do
                 echo "[vault-wait] Secret file is empty, waiting..."
                 sleep 2
               done
-              source /vault/secrets/upload-service.env
+              set -a
+              . "$ENV_FILE"
+              set +a
               exec ./consumer
           resources:
             requests:
@@ -213,4 +219,3 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "200m"
-

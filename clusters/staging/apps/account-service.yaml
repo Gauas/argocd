@@ -79,11 +79,12 @@ spec:
         vault.hashicorp.com/role: "staging"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-account-service.env: "secret/account-service/staging"
+        vault.hashicorp.com/agent-inject-file-account-service.env: ".env"
         vault.hashicorp.com/agent-inject-template-account-service.env: |
           {{- with secret "secret/account-service/staging" -}}
-          export ENVIRONMENT="{{ .Data.ENVIRONMENT }}"
-          export CONFIG_SERVICE_URL="{{ .Data.CONFIG_SERVICE_URL }}"
-          export SECRET_KEY="{{ .Data.SECRET_KEY }}"
+          {{- range $key, $value := .Data }}
+          export {{ $key }}={{ printf "%q" $value }}
+          {{- end }}
           {{- end }}
     spec:
       serviceAccountName: account-service
@@ -94,15 +95,18 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until [ -f /vault/secrets/account-service.env ]; do
+              ENV_FILE="/vault/secrets/.env"
+              until [ -f "$ENV_FILE" ]; do
                 echo "[vault-wait] Waiting for secret file..."
                 sleep 2
               done
-              until [ -s /vault/secrets/account-service.env ]; do
+              until [ -s "$ENV_FILE" ]; do
                 echo "[vault-wait] Secret file is empty, waiting..."
                 sleep 2
               done
-              source /vault/secrets/account-service.env
+              set -a
+              . "$ENV_FILE"
+              set +a
               exec ./app
           ports:
             - containerPort: 8080

@@ -79,11 +79,12 @@ spec:
         vault.hashicorp.com/role: "staging"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-config-service.env: "secret/config-service/staging"
+        vault.hashicorp.com/agent-inject-file-config-service.env: ".env"
         vault.hashicorp.com/agent-inject-template-config-service.env: |
           {{- with secret "secret/config-service/staging" -}}
-          export PORT="{{ .Data.PORT }}"
-          export DB_URL="{{ .Data.DB_URL }}"
-          export SECRET_KEY="{{ .Data.SECRET_KEY }}"
+          {{- range $key, $value := .Data }}
+          export {{ $key }}={{ printf "%q" $value }}
+          {{- end }}
           {{- end }}
     spec:
       serviceAccountName: config-service
@@ -94,15 +95,18 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until [ -f /vault/secrets/config-service.env ]; do
+              ENV_FILE="/vault/secrets/.env"
+              until [ -f "$ENV_FILE" ]; do
                 echo "[vault-wait] Waiting for secret file to appear..."
                 sleep 2
               done
-              until [ -s /vault/secrets/config-service.env ]; do
+              until [ -s "$ENV_FILE" ]; do
                 echo "[vault-wait] Secret file exists but is empty, waiting..."
                 sleep 2
               done
-              source /vault/secrets/config-service.env
+              set -a
+              . "$ENV_FILE"
+              set +a
               exec ./app
           ports:
             - containerPort: 8080
@@ -133,12 +137,8 @@ spec:
 # Engine : secret  (KV v1)
 # Path   : secret/config-service/staging
 #
-# Provision secrets before syncing this manifest:
-#
-#   vault kv put secret/config-service/staging \
-#     PORT="8080" \
-#     DB_URL="postgres://<user>:<password>@postgresql:5432/config_service?sslmode=disable" \
-#     CONFIG_SECRET_KEY="<strong-random-secret>"
+# Provision the required runtime env keys for this service at the Vault path above
+# before syncing this manifest.
 #
 # Vault policy required (staging):
 #   path "secret/*" {
