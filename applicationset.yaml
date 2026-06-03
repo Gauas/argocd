@@ -5,17 +5,23 @@ metadata:
   namespace: argocd
 spec:
   generators:
-    - git:
-        repoURL: https://github.com/Gauas/argocd.git
-        revision: master
-        directories:
-          - path: clusters/*
+    - list:
+        elements:
+          - environment: dev
+            branch: dev
+            path: clusters/dev
+          - environment: staging
+            branch: staging
+            path: clusters/staging
+          - environment: prod
+            branch: prod
+            path: clusters/prod
   template:
     metadata:
-      name: "{{path.basename}}-app"
+      name: "{{environment}}-app"
       namespace: argocd
       labels:
-        environment: "{{path.basename}}"
+        environment: "{{environment}}"
         managed-by: applicationset
       annotations:
         argocd.argoproj.io/managed-by: argocd
@@ -23,11 +29,13 @@ spec:
       project: default
       source:
         repoURL: https://github.com/Gauas/argocd.git
-        targetRevision: master
-        path: "{{path}}/apps"
+        targetRevision: "{{branch}}"
+        path: "{{path}}"
+        directory:
+          recurse: true
       destination:
         server: https://kubernetes.default.svc
-        namespace: "{{path.basename}}"
+        namespace: "{{environment}}"
       syncPolicy:
         automated:
           prune: true
