@@ -1,153 +1,153 @@
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: config-service
-  namespace: staging
-  labels:
-    app: config-service
-    environment: staging
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: config-service
-  namespace: staging
-  labels:
-    app: config-service
-    environment: staging
-spec:
-  selector:
-    app: config-service
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-  type: ClusterIP
-
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: config-service
-  namespace: staging
-  labels:
-    app: config-service
-    environment: staging
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-    traefik.ingress.kubernetes.io/router.middlewares: staging-cors@kubernetescrd
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: api.gauas.com
-      http:
-        paths:
-          - path: /v1/config
-            pathType: Prefix
-            backend:
-              service:
-                name: config-service
-                port:
-                  number: 80
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: config-service
-  namespace: staging
-  labels:
-    app: config-service
-    environment: staging
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: config=gauaslab/config-service
-    argocd-image-updater.argoproj.io/config.update-strategy: digest
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: config-service
-  template:
-    metadata:
-      labels:
-        app: config-service
-        environment: staging
-      annotations:
-        vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "staging"
-        vault.hashicorp.com/agent-pre-populate-only: "false"
-        vault.hashicorp.com/agent-inject-secret-config-service.env: "secret/config-service/staging"
-        vault.hashicorp.com/agent-inject-file-config-service.env: ".env"
-        vault.hashicorp.com/agent-inject-template-config-service.env: |
-          {{- with secret "secret/config-service/staging" -}}
-          {{- range $key, $value := .Data }}
-          export {{ $key }}={{ printf "%q" $value }}
-          {{- end }}
-          {{- end }}
-    spec:
-      serviceAccountName: config-service
-      containers:
-        - name: config-service
-          image: gauaslab/config-service:latest
-          imagePullPolicy: Always
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              ENV_FILE="/vault/secrets/.env"
-              until [ -f "$ENV_FILE" ]; do
-                echo "[vault-wait] Waiting for secret file to appear..."
-                sleep 2
-              done
-              until [ -s "$ENV_FILE" ]; do
-                echo "[vault-wait] Secret file exists but is empty, waiting..."
-                sleep 2
-              done
-              set -a
-              . "$ENV_FILE"
-              set +a
-              exec ./app
-          ports:
-            - containerPort: 8080
-          resources:
-            requests:
-              memory: "64Mi"
-              cpu: "50m"
-            limits:
-              memory: "128Mi"
-              cpu: "200m"
-          readinessProbe:
-            httpGet:
-              path: /v1/config/health
-              port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /v1/config/health
-              port: 8080
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            failureThreshold: 3
-
-# ─────────────────────────────────────────────────────────────────────────────
-# VAULT SECRET SETUP
-# Engine : secret  (KV v1)
-# Path   : secret/config-service/staging
-#
-# Provision the required runtime env keys for this service at the Vault path above
-# before syncing this manifest.
-#
-# Vault policy required (staging):
-#   path "secret/*" {
-#     capabilities = ["read"]
-#   }
-#
-# Vault Kubernetes auth role (staging):
-#   bound_service_account_names      = ["*"]
-#   bound_service_account_namespaces = ["staging"]
-#   policies                         = ["staging"]
-#   ttl                              = "1h"
-# ─────────────────────────────────────────────────────────────────────────────
+# --
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: config-service
+#   namespace: staging
+#   labels:
+#     app: config-service
+#     environment: staging
+# 
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: config-service
+#   namespace: staging
+#   labels:
+#     app: config-service
+#     environment: staging
+# spec:
+#   selector:
+#     app: config-service
+#   ports:
+#     - name: http
+#       port: 80
+#       targetPort: 8080
+#   type: ClusterIP
+# 
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: config-service
+#   namespace: staging
+#   labels:
+#     app: config-service
+#     environment: staging
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "1"
+#     traefik.ingress.kubernetes.io/router.middlewares: staging-cors@kubernetescrd
+# spec:
+#   ingressClassName: traefik
+#   rules:
+#     - host: api.gauas.com
+#       http:
+#         paths:
+#           - path: /v1/config
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: config-service
+#                 port:
+#                   number: 80
+# 
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: config-service
+#   namespace: staging
+#   labels:
+#     app: config-service
+#     environment: staging
+#   annotations:
+#     argocd-image-updater.argoproj.io/image-list: config=gauaslab/config-service
+#     argocd-image-updater.argoproj.io/config.update-strategy: digest
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: config-service
+#   template:
+#     metadata:
+#       labels:
+#         app: config-service
+#         environment: staging
+#       annotations:
+#         vault.hashicorp.com/agent-inject: "true"
+#         vault.hashicorp.com/role: "staging"
+#         vault.hashicorp.com/agent-pre-populate-only: "false"
+#         vault.hashicorp.com/agent-inject-secret-config-service.env: "secret/config-service/staging"
+#         vault.hashicorp.com/agent-inject-file-config-service.env: ".env"
+#         vault.hashicorp.com/agent-inject-template-config-service.env: |
+#           {{- with secret "secret/config-service/staging" -}}
+#           {{- range $key, $value := .Data }}
+#           export {{ $key }}={{ printf "%q" $value }}
+#           {{- end }}
+#           {{- end }}
+#     spec:
+#       serviceAccountName: config-service
+#       containers:
+#         - name: config-service
+#           image: gauaslab/config-service:latest
+#           imagePullPolicy: Always
+#           command: ["/bin/sh", "-c"]
+#           args:
+#             - |
+#               ENV_FILE="/vault/secrets/.env"
+#               until [ -f "$ENV_FILE" ]; do
+#                 echo "[vault-wait] Waiting for secret file to appear..."
+#                 sleep 2
+#               done
+#               until [ -s "$ENV_FILE" ]; do
+#                 echo "[vault-wait] Secret file exists but is empty, waiting..."
+#                 sleep 2
+#               done
+#               set -a
+#               . "$ENV_FILE"
+#               set +a
+#               exec ./app
+#           ports:
+#             - containerPort: 8080
+#           resources:
+#             requests:
+#               memory: "64Mi"
+#               cpu: "50m"
+#             limits:
+#               memory: "128Mi"
+#               cpu: "200m"
+#           readinessProbe:
+#             httpGet:
+#               path: /v1/config/health
+#               port: 8080
+#             initialDelaySeconds: 10
+#             periodSeconds: 5
+#             failureThreshold: 3
+#           livenessProbe:
+#             httpGet:
+#               path: /v1/config/health
+#               port: 8080
+#             initialDelaySeconds: 30
+#             periodSeconds: 10
+#             failureThreshold: 3
+# 
+# # ─────────────────────────────────────────────────────────────────────────────
+# # VAULT SECRET SETUP
+# # Engine : secret  (KV v1)
+# # Path   : secret/config-service/staging
+# #
+# # Provision the required runtime env keys for this service at the Vault path above
+# # before syncing this manifest.
+# #
+# # Vault policy required (staging):
+# #   path "secret/*" {
+# #     capabilities = ["read"]
+# #   }
+# #
+# # Vault Kubernetes auth role (staging):
+# #   bound_service_account_names      = ["*"]
+# #   bound_service_account_namespaces = ["staging"]
+# #   policies                         = ["staging"]
+# #   ttl                              = "1h"
+# # ─────────────────────────────────────────────────────────────────────────────
