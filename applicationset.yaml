@@ -7,15 +7,15 @@ spec:
   generators:
     - list:
         elements:
-          - environment: dev
-            branch: dev
-            path: clusters/dev
+          - environment: develop
+            branch: develop
+            path: clusters/develop
           - environment: staging
             branch: staging
             path: clusters/staging
-          - environment: prod
-            branch: prod
-            path: clusters/prod
+          - environment: production
+            branch: production
+            path: clusters/production
   template:
     metadata:
       name: "{{environment}}-app"
