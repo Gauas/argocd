@@ -107,7 +107,7 @@ spec:
               set -a
               . "$ENV_FILE"
               set +a
-              exec ./app
+              exec ./account-service
           ports:
             - containerPort: 8080
           resources:
