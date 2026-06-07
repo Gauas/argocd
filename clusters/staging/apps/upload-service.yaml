@@ -106,7 +106,7 @@ spec:
               set -a
               . "$ENV_FILE"
               set +a
-              exec ./app
+              exec ./entrypoint.sh
           ports:
             - containerPort: 8080
           resources:
@@ -211,7 +211,7 @@ spec:
               set -a
               . "$ENV_FILE"
               set +a
-              exec ./consumer
+              exec ./entrypoint.sh consumer
           resources:
             requests:
               memory: "64Mi"
