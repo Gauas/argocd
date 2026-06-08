@@ -3,5 +3,5 @@ kind: Namespace
 metadata:
   name: prod
   labels:
-    environment: prod
+    environment: production
     managed-by: argocd
