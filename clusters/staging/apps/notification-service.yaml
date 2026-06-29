@@ -23,7 +23,7 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 8084
+      targetPort: 8080
   type: ClusterIP
 
 ---
@@ -125,7 +125,7 @@ spec:
               set +a
               exec ./entrypoint.sh
           ports:
-            - containerPort: 8084
+            - containerPort: 8080
           resources:
             requests:
               memory: "64Mi"
@@ -136,14 +136,14 @@ spec:
           readinessProbe:
             httpGet:
               path: /v1/notification/health
-              port: 8084
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /v1/notification/health
-              port: 8084
+              port: 8080
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
