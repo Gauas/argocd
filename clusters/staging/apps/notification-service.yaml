@@ -86,6 +86,13 @@ spec:
           export {{ $key }}={{ printf "%q" $value }}
           {{- end }}
           {{- end }}
+        vault.hashicorp.com/agent-inject-secret-firebase-config.json: "secret/notification-service/config/firebase.json"
+        vault.hashicorp.com/agent-inject-file-firebase-config.json: "config.json"
+        vault.hashicorp.com/secret-volume-path-firebase-config.json: "/app/.firebase"
+        vault.hashicorp.com/agent-inject-template-firebase-config.json: |
+          {{- with secret "secret/notification-service/config/firebase.json" -}}
+          {{ .Data | toJSON }}
+          {{- end }}
     spec:
       serviceAccountName: notification-service
       containers:
@@ -102,6 +109,15 @@ spec:
               done
               until [ -s "$ENV_FILE" ]; do
                 echo "[vault-wait] Secret file is empty, waiting..."
+                sleep 2
+              done
+              FIREBASE_FILE="/app/.firebase/config.json"
+              until [ -f "$FIREBASE_FILE" ]; do
+                echo "[vault-wait] Waiting for firebase config file..."
+                sleep 2
+              done
+              until [ -s "$FIREBASE_FILE" ]; do
+                echo "[vault-wait] Firebase config file is empty, waiting..."
                 sleep 2
               done
               set -a
