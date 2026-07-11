@@ -1,0 +1,137 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: email-service
+  namespace: share-resource
+  labels:
+    app: email-service
+    environment: share-resource
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: email-service
+  namespace: share-resource
+  labels:
+    app: email-service
+    environment: share-resource
+spec:
+  selector:
+    app: email-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: email-service
+  namespace: share-resource
+  labels:
+    app: email-service
+    environment: share-resource
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: share-resource-cors@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.gauas.com
+      http:
+        paths:
+          - path: /v1/email
+            pathType: Prefix
+            backend:
+              service:
+                name: email-service
+                port:
+                  number: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-service
+  namespace: share-resource
+  labels:
+    app: email-service
+    environment: share-resource
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: email=gauaslab/email-service
+    argocd-image-updater.argoproj.io/email.update-strategy: digest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: email-service
+  template:
+    metadata:
+      labels:
+        app: email-service
+        environment: share-resource
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "share-resource"
+        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-inject-secret-email-service.env: "secret/email-service/share-resource"
+        vault.hashicorp.com/agent-inject-file-email-service.env: ".env"
+        vault.hashicorp.com/agent-inject-template-email-service.env: |
+          {{- with secret "secret/email-service/share-resource" -}}
+          {{- range $key, $value := .Data }}
+          export {{ $key }}={{ printf "%q" $value }}
+          {{- end }}
+          {{- end }}
+    spec:
+      serviceAccountName: email-service
+      containers:
+        - name: email-service
+          image: gauaslab/email-service:latest
+          imagePullPolicy: Always
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              ENV_FILE="/vault/secrets/.env"
+              until [ -f "$ENV_FILE" ]; do
+                echo "[vault-wait] Waiting for secret file..."
+                sleep 2
+              done
+              until [ -s "$ENV_FILE" ]; do
+                echo "[vault-wait] Secret file is empty, waiting..."
+                sleep 2
+              done
+              set -a
+              . "$ENV_FILE"
+              set +a
+              exec ./entrypoint.sh
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          readinessProbe:
+            httpGet:
+              path: /v1/email/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /v1/email/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+
+# Put the required runtime env keys for this service at
+# `secret/email-service/share-resource` before syncing this manifest. Use
+# `email-service/config/share-resource.json` as the expected key list and defaults.

@@ -8,16 +8,16 @@ spec:
     - list:
         elements:
           - environment: develop
-            branch: develop
+            branch: master
             path: clusters/develop
           - environment: staging
-            branch: staging
+            branch: master
             path: clusters/staging
           - environment: share-resource
-            branch: staging
+            branch: master
             path: clusters/share-resource
           - environment: production
-            branch: production
+            branch: master
             path: clusters/production
   template:
     metadata:
