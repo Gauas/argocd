@@ -13,6 +13,9 @@ spec:
           - environment: staging
             branch: staging
             path: clusters/staging
+          - environment: share-resource
+            branch: staging
+            path: clusters/share-resource
           - environment: production
             branch: production
             path: clusters/production

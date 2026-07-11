@@ -1,143 +1,143 @@
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: socket-hub
-  namespace: staging
-  labels:
-    app: socket-hub
-    environment: staging
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: socket-hub
-  namespace: staging
-  labels:
-    app: socket-hub
-    environment: staging
-spec:
-  selector:
-    app: socket-hub
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8085
-  type: ClusterIP
-
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: socket-hub
-  namespace: staging
-  labels:
-    app: socket-hub
-    environment: staging
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-    traefik.ingress.kubernetes.io/router.middlewares: staging-cors@kubernetescrd
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: socket.gauas.com
-      http:
-        paths:
-          - path: /ws
-            pathType: Prefix
-            backend:
-              service:
-                name: socket-hub
-                port:
-                  number: 80
-          - path: /connection/websocket
-            pathType: Prefix
-            backend:
-              service:
-                name: socket-hub
-                port:
-                  number: 80
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: socket-hub
-  namespace: staging
-  labels:
-    app: socket-hub
-    environment: staging
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: socket=gauaslab/socket-hub
-    argocd-image-updater.argoproj.io/socket.update-strategy: digest
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: socket-hub
-  template:
-    metadata:
-      labels:
-        app: socket-hub
-        environment: staging
-      annotations:
-        vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "staging"
-        vault.hashicorp.com/agent-pre-populate-only: "false"
-        vault.hashicorp.com/agent-inject-secret-socket-hub.env: "secret/socket-hub/staging"
-        vault.hashicorp.com/agent-inject-file-socket-hub.env: ".env"
-        vault.hashicorp.com/agent-inject-template-socket-hub.env: |
-          {{- with secret "secret/socket-hub/staging" -}}
-          {{- range $key, $value := .Data }}
-          export {{ $key }}={{ printf "%q" $value }}
-          {{- end }}
-          {{- end }}
-    spec:
-      serviceAccountName: socket-hub
-      containers:
-        - name: socket-hub
-          image: gauaslab/socket-hub:latest
-          imagePullPolicy: Always
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              ENV_FILE="/vault/secrets/.env"
-              until [ -f "$ENV_FILE" ]; do
-                echo "[vault-wait] Waiting for secret file..."
-                sleep 2
-              done
-              until [ -s "$ENV_FILE" ]; do
-                echo "[vault-wait] Secret file is empty, waiting..."
-                sleep 2
-              done
-              set -a
-              . "$ENV_FILE"
-              set +a
-              exec ./entrypoint.sh
-          ports:
-            - containerPort: 8085
-          resources:
-            requests:
-              memory: "32Mi"
-              cpu: "25m"
-            limits:
-              memory: "128Mi"
-              cpu: "100m"
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8085
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8085
-            initialDelaySeconds: 15
-            periodSeconds: 10
-            failureThreshold: 3
-
-# Put the required runtime env keys for this service at
-# `secret/socket-hub/staging` before syncing this manifest.
+# ---
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: socket-hub
+#   namespace: staging
+#   labels:
+#     app: socket-hub
+#     environment: staging
+#
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: socket-hub
+#   namespace: staging
+#   labels:
+#     app: socket-hub
+#     environment: staging
+# spec:
+#   selector:
+#     app: socket-hub
+#   ports:
+#     - name: http
+#       port: 80
+#       targetPort: 8085
+#   type: ClusterIP
+#
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: socket-hub
+#   namespace: staging
+#   labels:
+#     app: socket-hub
+#     environment: staging
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "1"
+#     traefik.ingress.kubernetes.io/router.middlewares: staging-cors@kubernetescrd
+# spec:
+#   ingressClassName: traefik
+#   rules:
+#     - host: socket.gauas.com
+#       http:
+#         paths:
+#           - path: /ws
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: socket-hub
+#                 port:
+#                   number: 80
+#           - path: /connection/websocket
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: socket-hub
+#                 port:
+#                   number: 80
+#
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: socket-hub
+#   namespace: staging
+#   labels:
+#     app: socket-hub
+#     environment: staging
+#   annotations:
+#     argocd-image-updater.argoproj.io/image-list: socket=gauaslab/socket-hub
+#     argocd-image-updater.argoproj.io/socket.update-strategy: digest
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: socket-hub
+#   template:
+#     metadata:
+#       labels:
+#         app: socket-hub
+#         environment: staging
+#       annotations:
+#         vault.hashicorp.com/agent-inject: "true"
+#         vault.hashicorp.com/role: "staging"
+#         vault.hashicorp.com/agent-pre-populate-only: "false"
+#         vault.hashicorp.com/agent-inject-secret-socket-hub.env: "secret/socket-hub/staging"
+#         vault.hashicorp.com/agent-inject-file-socket-hub.env: ".env"
+#         vault.hashicorp.com/agent-inject-template-socket-hub.env: |
+#           {{- with secret "secret/socket-hub/staging" -}}
+#           {{- range $key, $value := .Data }}
+#           export {{ $key }}={{ printf "%q" $value }}
+#           {{- end }}
+#           {{- end }}
+#     spec:
+#       serviceAccountName: socket-hub
+#       containers:
+#         - name: socket-hub
+#           image: gauaslab/socket-hub:latest
+#           imagePullPolicy: Always
+#           command: ["/bin/sh", "-c"]
+#           args:
+#             - |
+#               ENV_FILE="/vault/secrets/.env"
+#               until [ -f "$ENV_FILE" ]; do
+#                 echo "[vault-wait] Waiting for secret file..."
+#                 sleep 2
+#               done
+#               until [ -s "$ENV_FILE" ]; do
+#                 echo "[vault-wait] Secret file is empty, waiting..."
+#                 sleep 2
+#               done
+#               set -a
+#               . "$ENV_FILE"
+#               set +a
+#               exec ./entrypoint.sh
+#           ports:
+#             - containerPort: 8085
+#           resources:
+#             requests:
+#               memory: "32Mi"
+#               cpu: "25m"
+#             limits:
+#               memory: "128Mi"
+#               cpu: "100m"
+#           readinessProbe:
+#             httpGet:
+#               path: /health
+#               port: 8085
+#             initialDelaySeconds: 5
+#             periodSeconds: 5
+#             failureThreshold: 3
+#           livenessProbe:
+#             httpGet:
+#               path: /health
+#               port: 8085
+#             initialDelaySeconds: 15
+#             periodSeconds: 10
+#             failureThreshold: 3
+#
+# # Put the required runtime env keys for this service at
+# # `secret/socket-hub/staging` before syncing this manifest.
