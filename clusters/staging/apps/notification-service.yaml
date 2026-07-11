@@ -2,24 +2,24 @@
 # apiVersion: v1
 # kind: ServiceAccount
 # metadata:
-#   name: authorization-service
+#   name: notification-service
 #   namespace: staging
 #   labels:
-#     app: authorization-service
+#     app: notification-service
 #     environment: staging
 #
 # ---
 # apiVersion: v1
 # kind: Service
 # metadata:
-#   name: authorization-service
+#   name: notification-service
 #   namespace: staging
 #   labels:
-#     app: authorization-service
+#     app: notification-service
 #     environment: staging
 # spec:
 #   selector:
-#     app: authorization-service
+#     app: notification-service
 #   ports:
 #     - name: http
 #       port: 80
@@ -30,10 +30,10 @@
 # apiVersion: networking.k8s.io/v1
 # kind: Ingress
 # metadata:
-#   name: authorization-service
+#   name: notification-service
 #   namespace: staging
 #   labels:
-#     app: authorization-service
+#     app: notification-service
 #     environment: staging
 #   annotations:
 #     argocd.argoproj.io/sync-wave: "1"
@@ -44,11 +44,11 @@
 #     - host: api.gauas.com
 #       http:
 #         paths:
-#           - path: /v1/authorization
+#           - path: /v1/notification
 #             pathType: Prefix
 #             backend:
 #               service:
-#                 name: authorization-service
+#                 name: notification-service
 #                 port:
 #                   number: 80
 #
@@ -56,41 +56,48 @@
 # apiVersion: apps/v1
 # kind: Deployment
 # metadata:
-#   name: authorization-service
+#   name: notification-service
 #   namespace: staging
 #   labels:
-#     app: authorization-service
+#     app: notification-service
 #     environment: staging
 #   annotations:
-#     argocd-image-updater.argoproj.io/image-list: auth=gauaslab/authorization-service
-#     argocd-image-updater.argoproj.io/auth.update-strategy: digest
+#     argocd-image-updater.argoproj.io/image-list: notification=gauaslab/notification-service
+#     argocd-image-updater.argoproj.io/notification.update-strategy: digest
 # spec:
 #   replicas: 1
 #   selector:
 #     matchLabels:
-#       app: authorization-service
+#       app: notification-service
 #   template:
 #     metadata:
 #       labels:
-#         app: authorization-service
+#         app: notification-service
 #         environment: staging
 #       annotations:
 #         vault.hashicorp.com/agent-inject: "true"
 #         vault.hashicorp.com/role: "staging"
 #         vault.hashicorp.com/agent-pre-populate-only: "false"
-#         vault.hashicorp.com/agent-inject-secret-authorization-service.env: "secret/authorization-service/staging"
-#         vault.hashicorp.com/agent-inject-file-authorization-service.env: ".env"
-#         vault.hashicorp.com/agent-inject-template-authorization-service.env: |
-#           {{- with secret "secret/authorization-service/staging" -}}
+#         vault.hashicorp.com/agent-inject-secret-notification-service.env: "secret/notification-service/staging"
+#         vault.hashicorp.com/agent-inject-file-notification-service.env: ".env"
+#         vault.hashicorp.com/agent-inject-template-notification-service.env: |
+#           {{- with secret "secret/notification-service/staging" -}}
 #           {{- range $key, $value := .Data }}
 #           export {{ $key }}={{ printf "%q" $value }}
 #           {{- end }}
 #           {{- end }}
+#         vault.hashicorp.com/agent-inject-secret-firebase-config.json: "secret/notification-service/config/firebase.json"
+#         vault.hashicorp.com/agent-inject-file-firebase-config.json: "config.json"
+#         vault.hashicorp.com/secret-volume-path-firebase-config.json: "/app/.firebase"
+#         vault.hashicorp.com/agent-inject-template-firebase-config.json: |
+#           {{- with secret "secret/notification-service/config/firebase.json" -}}
+#           {{ .Data | toJSON }}
+#           {{- end }}
 #     spec:
-#       serviceAccountName: authorization-service
+#       serviceAccountName: notification-service
 #       containers:
-#         - name: authorization-service
-#           image: gauaslab/authorization-service:latest
+#         - name: notification-service
+#           image: gauaslab/notification-service:latest
 #           imagePullPolicy: Always
 #           command: ["/bin/sh", "-c"]
 #           args:
@@ -104,10 +111,19 @@
 #                 echo "[vault-wait] Secret file is empty, waiting..."
 #                 sleep 2
 #               done
+#               FIREBASE_FILE="/app/.firebase/config.json"
+#               until [ -f "$FIREBASE_FILE" ]; do
+#                 echo "[vault-wait] Waiting for firebase config file..."
+#                 sleep 2
+#               done
+#               until [ -s "$FIREBASE_FILE" ]; do
+#                 echo "[vault-wait] Firebase config file is empty, waiting..."
+#                 sleep 2
+#               done
 #               set -a
 #               . "$ENV_FILE"
 #               set +a
-#               exec ./app
+#               exec ./entrypoint.sh
 #           ports:
 #             - containerPort: 8080
 #           resources:
@@ -115,19 +131,22 @@
 #               memory: "64Mi"
 #               cpu: "50m"
 #             limits:
-#               memory: "128Mi"
+#               memory: "256Mi"
 #               cpu: "200m"
 #           readinessProbe:
 #             httpGet:
-#               path: /v1/authorization/health
+#               path: /v1/notification/health
 #               port: 8080
 #             initialDelaySeconds: 10
 #             periodSeconds: 5
 #             failureThreshold: 3
 #           livenessProbe:
 #             httpGet:
-#               path: /v1/authorization/health
+#               path: /v1/notification/health
 #               port: 8080
 #             initialDelaySeconds: 30
 #             periodSeconds: 10
 #             failureThreshold: 3
+#
+# # Put the required runtime env keys for this service at
+# # `secret/notification-service/staging` before syncing this manifest.
