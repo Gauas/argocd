@@ -2,24 +2,24 @@
 # apiVersion: v1
 # kind: ServiceAccount
 # metadata:
-#   name: authorization-service
+#   name: email-service
 #   namespace: staging
 #   labels:
-#     app: authorization-service
+#     app: email-service
 #     environment: staging
 #
 # ---
 # apiVersion: v1
 # kind: Service
 # metadata:
-#   name: authorization-service
+#   name: email-service
 #   namespace: staging
 #   labels:
-#     app: authorization-service
+#     app: email-service
 #     environment: staging
 # spec:
 #   selector:
-#     app: authorization-service
+#     app: email-service
 #   ports:
 #     - name: http
 #       port: 80
@@ -30,10 +30,10 @@
 # apiVersion: networking.k8s.io/v1
 # kind: Ingress
 # metadata:
-#   name: authorization-service
+#   name: email-service
 #   namespace: staging
 #   labels:
-#     app: authorization-service
+#     app: email-service
 #     environment: staging
 #   annotations:
 #     argocd.argoproj.io/sync-wave: "1"
@@ -44,11 +44,11 @@
 #     - host: api.gauas.com
 #       http:
 #         paths:
-#           - path: /v1/authorization
+#           - path: /v1/email
 #             pathType: Prefix
 #             backend:
 #               service:
-#                 name: authorization-service
+#                 name: email-service
 #                 port:
 #                   number: 80
 #
@@ -56,41 +56,41 @@
 # apiVersion: apps/v1
 # kind: Deployment
 # metadata:
-#   name: authorization-service
+#   name: email-service
 #   namespace: staging
 #   labels:
-#     app: authorization-service
+#     app: email-service
 #     environment: staging
 #   annotations:
-#     argocd-image-updater.argoproj.io/image-list: auth=gauaslab/authorization-service
-#     argocd-image-updater.argoproj.io/auth.update-strategy: digest
+#     argocd-image-updater.argoproj.io/image-list: email=gauaslab/email-service
+#     argocd-image-updater.argoproj.io/email.update-strategy: digest
 # spec:
 #   replicas: 1
 #   selector:
 #     matchLabels:
-#       app: authorization-service
+#       app: email-service
 #   template:
 #     metadata:
 #       labels:
-#         app: authorization-service
+#         app: email-service
 #         environment: staging
 #       annotations:
 #         vault.hashicorp.com/agent-inject: "true"
 #         vault.hashicorp.com/role: "staging"
 #         vault.hashicorp.com/agent-pre-populate-only: "false"
-#         vault.hashicorp.com/agent-inject-secret-authorization-service.env: "secret/authorization-service/staging"
-#         vault.hashicorp.com/agent-inject-file-authorization-service.env: ".env"
-#         vault.hashicorp.com/agent-inject-template-authorization-service.env: |
-#           {{- with secret "secret/authorization-service/staging" -}}
+#         vault.hashicorp.com/agent-inject-secret-email-service.env: "secret/email-service/staging"
+#         vault.hashicorp.com/agent-inject-file-email-service.env: ".env"
+#         vault.hashicorp.com/agent-inject-template-email-service.env: |
+#           {{- with secret "secret/email-service/staging" -}}
 #           {{- range $key, $value := .Data }}
 #           export {{ $key }}={{ printf "%q" $value }}
 #           {{- end }}
 #           {{- end }}
 #     spec:
-#       serviceAccountName: authorization-service
+#       serviceAccountName: email-service
 #       containers:
-#         - name: authorization-service
-#           image: gauaslab/authorization-service:latest
+#         - name: email-service
+#           image: gauaslab/email-service:latest
 #           imagePullPolicy: Always
 #           command: ["/bin/sh", "-c"]
 #           args:
@@ -107,7 +107,7 @@
 #               set -a
 #               . "$ENV_FILE"
 #               set +a
-#               exec ./app
+#               exec ./entrypoint.sh
 #           ports:
 #             - containerPort: 8080
 #           resources:
@@ -119,15 +119,19 @@
 #               cpu: "200m"
 #           readinessProbe:
 #             httpGet:
-#               path: /v1/authorization/health
+#               path: /v1/email/health
 #               port: 8080
 #             initialDelaySeconds: 10
 #             periodSeconds: 5
 #             failureThreshold: 3
 #           livenessProbe:
 #             httpGet:
-#               path: /v1/authorization/health
+#               path: /v1/email/health
 #               port: 8080
 #             initialDelaySeconds: 30
 #             periodSeconds: 10
 #             failureThreshold: 3
+#
+# # Put the required runtime env keys for this service at
+# # `secret/email-service/staging` before syncing this manifest. Use
+# # `email-service/config/staging.json` as the expected key list and defaults.

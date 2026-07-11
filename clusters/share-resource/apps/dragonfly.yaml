@@ -9,20 +9,20 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: dragonfly
-  namespace: staging
+  namespace: share-resource
   labels:
     app: dragonfly
-    environment: staging
+    environment: share-resource
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: dragonfly
-  namespace: staging
+  namespace: share-resource
   labels:
     app: dragonfly
-    environment: staging
+    environment: share-resource
 spec:
   selector:
     app: dragonfly
@@ -37,10 +37,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: dragonfly-headless
-  namespace: staging
+  namespace: share-resource
   labels:
     app: dragonfly
-    environment: staging
+    environment: share-resource
 spec:
   clusterIP: None
   selector:
@@ -55,10 +55,10 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: dragonfly
-  namespace: staging
+  namespace: share-resource
   labels:
     app: dragonfly
-    environment: staging
+    environment: share-resource
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
@@ -71,7 +71,7 @@ spec:
     metadata:
       labels:
         app: dragonfly
-        environment: staging
+        environment: share-resource
     spec:
       serviceAccountName: dragonfly
       securityContext:
@@ -115,7 +115,7 @@ spec:
         name: dragonfly-data
         labels:
           app: dragonfly
-          environment: staging
+          environment: share-resource
       spec:
         accessModes:
           - ReadWriteOnce
