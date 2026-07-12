@@ -1,0 +1,286 @@
+---
+# MinIO is deliberately pinned to whale because its persistent volume is the
+# local /data disk on that node. The PV is retained if this application is pruned.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: minio-whale-data
+  labels:
+    app: minio
+    environment: shared-service
+spec:
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: minio-whale-local
+  local:
+    path: /data/minio
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - whale
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: shared-service
+  labels:
+    app: minio
+    environment: shared-service
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: minio-whale-local
+  volumeName: minio-whale-data
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: minio
+  namespace: shared-service
+  labels:
+    app: minio
+    environment: shared-service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: shared-service
+  labels:
+    app: minio
+    environment: shared-service
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+  type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: minio-console-prefix
+  namespace: shared-service
+  labels:
+    app: minio
+    environment: shared-service
+spec:
+  stripPrefix:
+    prefixes:
+      - /console
+---
+# The S3 API is on storage.gauas.com. The MinIO Console is served under
+# storage.gauas.com/console; this avoids exposing a separate management domain.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-storage
+  namespace: shared-service
+  labels:
+    app: minio
+    environment: shared-service
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: shared-service-minio-console-prefix@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: storage.gauas.com
+      http:
+        paths:
+          - path: /console
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  name: console
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  name: api
+---
+# Public bucket objects are reachable through cdn.gauas.com. Bucket policies,
+# rather than ingress rules, determine which objects can be downloaded publicly.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-cdn
+  namespace: shared-service
+  labels:
+    app: minio
+    environment: shared-service
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: cdn.gauas.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  name: api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: shared-service
+  labels:
+    app: minio
+    environment: shared-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+        environment: shared-service
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "shared-service"
+        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-inject-secret-minio.env: "secret/minio/shared-service"
+        vault.hashicorp.com/agent-inject-template-minio.env: |
+          {{- with secret "secret/minio/shared-service" -}}
+          export MINIO_ROOT_USER="{{ .Data.MINIO_ROOT_USER }}"
+          export MINIO_ROOT_PASSWORD="{{ .Data.MINIO_ROOT_PASSWORD }}"
+          {{- end }}
+    spec:
+      serviceAccountName: minio
+      nodeSelector:
+        kubernetes.io/hostname: whale
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              ENV_FILE=/vault/secrets/minio.env
+              until [ -s "$ENV_FILE" ]; do
+                echo "[vault-wait] Waiting for MinIO credentials..."
+                sleep 2
+              done
+              . "$ENV_FILE"
+              export MINIO_BROWSER_REDIRECT_URL="https://storage.gauas.com/console"
+              exec minio server /data --console-address ":9001"
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-data
+
+---
+# Bootstrap a dedicated public bucket so files at
+# https://cdn.gauas.com/public/<object> are anonymously downloadable.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-public-bucket
+  namespace: shared-service
+  labels:
+    app: minio
+    environment: shared-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: minio-public-bucket
+        environment: shared-service
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "shared-service"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/agent-inject-secret-minio.env: "secret/minio/shared-service"
+        vault.hashicorp.com/agent-inject-template-minio.env: |
+          {{- with secret "secret/minio/shared-service" -}}
+          export MINIO_ROOT_USER="{{ .Data.MINIO_ROOT_USER }}"
+          export MINIO_ROOT_PASSWORD="{{ .Data.MINIO_ROOT_PASSWORD }}"
+          {{- end }}
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        kubernetes.io/hostname: whale
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              . /vault/secrets/minio.env
+              until mc alias set local http://minio.shared-service.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+                echo "[minio-wait] Waiting for MinIO API..."
+                sleep 5
+              done
+              mc mb --ignore-existing local/public
+              mc anonymous set download local/public
+
+# Provision these Vault KV-v1 values before syncing:
+#   vault kv put secret/minio/shared-service \
+#     MINIO_ROOT_USER="<admin-user>" \
+#     MINIO_ROOT_PASSWORD="<strong-random-password>"
+# The shared-service Vault Kubernetes role must permit the shared-service
+# namespace and read access to secret/minio/shared-service.

@@ -8,16 +8,12 @@ spec:
     - list:
         elements:
           - environment: develop
-            branch: master
             path: clusters/develop
           - environment: staging
-            branch: master
             path: clusters/staging
-          - environment: share-resource
-            branch: master
-            path: clusters/share-resource
+          - environment: shared-service
+            path: clusters/shared-service
           - environment: production
-            branch: master
             path: clusters/production
   template:
     metadata:
@@ -32,7 +28,7 @@ spec:
       project: default
       source:
         repoURL: https://github.com/Gauas/argocd.git
-        targetRevision: "{{branch}}"
+        targetRevision: master
         path: "{{path}}"
         directory:
           recurse: true

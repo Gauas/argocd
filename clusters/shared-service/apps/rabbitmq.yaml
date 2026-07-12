@@ -8,23 +8,23 @@
 #
 # VAULT SECRET SETUP
 # Engine : secret  (KV v1)
-# Path   : secret/rabbitmq/share-resource
+# Path   : secret/rabbitmq/shared-service
 #
 # Provision secrets before syncing this manifest:
 #
-#   vault kv put secret/rabbitmq/share-resource \
+#   vault kv put secret/rabbitmq/shared-service \
 #     RABBITMQ_DEFAULT_USER="<username>" \
 #     RABBITMQ_DEFAULT_PASS="<strong-random-password>"
 #
-# Vault policy required (share-resource):
+# Vault policy required (shared-service):
 #   path "secret/*" {
 #     capabilities = ["read"]
 #   }
 #
-# Vault Kubernetes auth role (share-resource):
+# Vault Kubernetes auth role (shared-service):
 #   bound_service_account_names      = ["*"]
-#   bound_service_account_namespaces = ["share-resource"]
-#   policies                         = ["share-resource"]
+#   bound_service_account_namespaces = ["shared-service"]
+#   policies                         = ["shared-service"]
 #   ttl                              = "1h"
 # ─────────────────────────────────────────────────────────────
 
@@ -32,20 +32,20 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: rabbitmq
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: rabbitmq
-    environment: share-resource
+    environment: shared-service
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: rabbitmq
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: rabbitmq
-    environment: share-resource
+    environment: shared-service
 rules:
   - apiGroups: [""]
     resources: ["endpoints"]
@@ -62,14 +62,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: rabbitmq
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: rabbitmq
-    environment: share-resource
+    environment: shared-service
 subjects:
   - kind: ServiceAccount
     name: rabbitmq
-    namespace: share-resource
+    namespace: shared-service
 roleRef:
   kind: Role
   name: rabbitmq
@@ -80,10 +80,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: rabbitmq
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: rabbitmq
-    environment: share-resource
+    environment: shared-service
 spec:
   selector:
     app: rabbitmq
@@ -101,10 +101,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: rabbitmq-headless
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: rabbitmq
-    environment: share-resource
+    environment: shared-service
 spec:
   clusterIP: None
   selector:
@@ -128,10 +128,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: rabbitmq-config
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: rabbitmq
-    environment: share-resource
+    environment: shared-service
 data:
   enabled_plugins: |
     [rabbitmq_management,rabbitmq_peer_discovery_k8s].
@@ -158,10 +158,10 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: rabbitmq
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: rabbitmq
-    environment: share-resource
+    environment: shared-service
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
@@ -174,15 +174,15 @@ spec:
     metadata:
       labels:
         app: rabbitmq
-        environment: share-resource
+        environment: shared-service
       annotations:
         vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "share-resource"
+        vault.hashicorp.com/role: "shared-service"
         vault.hashicorp.com/agent-pre-populate-only: "false"
-        vault.hashicorp.com/agent-inject-secret-rabbitmq.env: "secret/rabbitmq/share-resource"
+        vault.hashicorp.com/agent-inject-secret-rabbitmq.env: "secret/rabbitmq/shared-service"
         # KV v1: values are accessed directly under .Data.*
         vault.hashicorp.com/agent-inject-template-rabbitmq.env: |
-          {{- with secret "secret/rabbitmq/share-resource" -}}
+          {{- with secret "secret/rabbitmq/shared-service" -}}
           export RABBITMQ_DEFAULT_USER="{{ .Data.RABBITMQ_DEFAULT_USER }}"
           export RABBITMQ_DEFAULT_PASS="{{ .Data.RABBITMQ_DEFAULT_PASS }}"
           {{- end }}
@@ -232,11 +232,11 @@ spec:
             - name: K8S_SERVICE_NAME
               value: rabbitmq-headless
             - name: K8S_HOSTNAME_SUFFIX
-              value: .rabbitmq-headless.share-resource.svc.cluster.local
+              value: .rabbitmq-headless.shared-service.svc.cluster.local
             - name: RABBITMQ_USE_LONGNAME
               value: "true"
             - name: RABBITMQ_ERLANG_COOKIE
-              value: "share-resource-rabbitmq-erlang-cookie"
+              value: "shared-service-rabbitmq-erlang-cookie"
           resources:
             requests:
               memory: "256Mi"
@@ -277,7 +277,7 @@ spec:
         name: rabbitmq-data
         labels:
           app: rabbitmq
-          environment: share-resource
+          environment: shared-service
       spec:
         accessModes:
           - ReadWriteOnce

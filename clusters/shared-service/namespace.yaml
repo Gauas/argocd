@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: share-resource
+  name: shared-service
   labels:
-    environment: share-resource
+    environment: shared-service
     managed-by: argocd

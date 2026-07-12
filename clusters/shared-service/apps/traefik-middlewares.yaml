@@ -1,18 +1,18 @@
 ---
 # ─────────────────────────────────────────────────────────────
-# TRAEFIK MIDDLEWARES — share-resource
+# TRAEFIK MIDDLEWARES — shared-service
 # Shared middlewares applied across all Ingress resources.
 # Reference format in Ingress annotation:
-#   traefik.ingress.kubernetes.io/router.middlewares: share-resource-cors@kubernetescrd
+#   traefik.ingress.kubernetes.io/router.middlewares: shared-service-cors@kubernetescrd
 # ─────────────────────────────────────────────────────────────
 
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: cors
-  namespace: share-resource
+  namespace: shared-service
   labels:
-    environment: share-resource
+    environment: shared-service
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:

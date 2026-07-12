@@ -3,10 +3,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgresql-config
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: postgresql
-    environment: share-resource
+    environment: shared-service
 data:
   PGDATA: /var/lib/postgresql/data/pgdata
 
@@ -15,10 +15,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgresql
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: postgresql
-    environment: share-resource
+    environment: shared-service
 spec:
   selector:
     app: postgresql
@@ -30,15 +30,15 @@ spec:
 
 ---
 # Headless service required by StatefulSet for stable DNS per pod
-# e.g. postgresql-0.postgresql-headless.share-resource.svc.cluster.local
+# e.g. postgresql-0.postgresql-headless.shared-service.svc.cluster.local
 apiVersion: v1
 kind: Service
 metadata:
   name: postgresql-headless
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: postgresql
-    environment: share-resource
+    environment: shared-service
 spec:
   clusterIP: None
   selector:
@@ -53,20 +53,20 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: postgresql
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: postgresql
-    environment: share-resource
+    environment: shared-service
 
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgresql
-  namespace: share-resource
+  namespace: shared-service
   labels:
     app: postgresql
-    environment: share-resource
+    environment: shared-service
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
@@ -79,15 +79,15 @@ spec:
     metadata:
       labels:
         app: postgresql
-        environment: share-resource
+        environment: shared-service
       annotations:
         vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "share-resource"
+        vault.hashicorp.com/role: "shared-service"
         vault.hashicorp.com/agent-pre-populate-only: "false"
-        vault.hashicorp.com/agent-inject-secret-postgresql.env: "secret/postgresql/share-resource"
+        vault.hashicorp.com/agent-inject-secret-postgresql.env: "secret/postgresql/shared-service"
         # KV v1: values are accessed directly under .Data.*
         vault.hashicorp.com/agent-inject-template-postgresql.env: |
-          {{- with secret "secret/postgresql/share-resource" -}}
+          {{- with secret "secret/postgresql/shared-service" -}}
           export POSTGRES_USER="{{ .Data.POSTGRES_USER }}"
           export POSTGRES_PASSWORD="{{ .Data.POSTGRES_PASSWORD }}"
           export POSTGRES_DB="{{ .Data.POSTGRES_DB }}"
@@ -159,7 +159,7 @@ spec:
         name: postgresql-data
         labels:
           app: postgresql
-          environment: share-resource
+          environment: shared-service
       spec:
         accessModes:
           - ReadWriteOnce
@@ -175,7 +175,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pgbouncer-config
-  namespace: share-resource
+  namespace: shared-service
 data:
   pgbouncer.ini: |
     [databases]
@@ -199,7 +199,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pgbouncer
-  namespace: share-resource
+  namespace: shared-service
 spec:
   replicas: 1
   selector:
@@ -211,10 +211,10 @@ spec:
         app: pgbouncer
       annotations:
         vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "share-resource"
-        vault.hashicorp.com/agent-inject-secret-postgresql.env: "secret/postgresql/share-resource"
+        vault.hashicorp.com/role: "shared-service"
+        vault.hashicorp.com/agent-inject-secret-postgresql.env: "secret/postgresql/shared-service"
         vault.hashicorp.com/agent-inject-template-postgresql.env: |
-          {{- with secret "secret/postgresql/share-resource" -}}
+          {{- with secret "secret/postgresql/shared-service" -}}
           export POSTGRES_USER="{{ .Data.POSTGRES_USER }}"
           export POSTGRES_PASSWORD="{{ .Data.POSTGRES_PASSWORD }}"
           export POSTGRES_DB="{{ .Data.POSTGRES_DB }}"
@@ -267,7 +267,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pgbouncer
-  namespace: share-resource
+  namespace: shared-service
 spec:
   selector:
     app: pgbouncer
@@ -282,7 +282,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: haproxy-config
-  namespace: share-resource
+  namespace: shared-service
 data:
   haproxy.cfg: |
     global
@@ -308,7 +308,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: haproxy
-  namespace: share-resource
+  namespace: shared-service
 spec:
   replicas: 1
   selector:
@@ -349,7 +349,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: database
-  namespace: share-resource
+  namespace: shared-service
 spec:
   type: NodePort
   selector:
@@ -361,24 +361,24 @@ spec:
 # ─────────────────────────────────────────────────────────────────────────────
 # VAULT SECRET SETUP
 # Engine : secret  (KV v1)
-# Path   : secret/postgresql/share-resource
+# Path   : secret/postgresql/shared-service
 #
 # Provision secrets before syncing this manifest:
 #
-#   vault kv put secret/postgresql/share-resource \
+#   vault kv put secret/postgresql/shared-service \
 #     POSTGRES_USER="<db-username>" \
 #     POSTGRES_PASSWORD="<strong-random-password>" \
 #     POSTGRES_DB="<database-name>"
 #
-# Vault policy required (share-resource):
+# Vault policy required (shared-service):
 #   path "secret/*" {
 #     capabilities = ["read"]
 #   }
 #
-# Vault Kubernetes auth role (share-resource):
+# Vault Kubernetes auth role (shared-service):
 #   bound_service_account_names      = ["*"]
-#   bound_service_account_namespaces = ["share-resource"]
-#   policies                         = ["share-resource"]
+#   bound_service_account_namespaces = ["shared-service"]
+#   policies                         = ["shared-service"]
 #   ttl                              = "1h"
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -392,10 +392,10 @@ spec:
 #kind: Deployment
 #metadata:
 #  name: pgadmin
-#  namespace: share-resource
+#  namespace: shared-service
 #  labels:
 #    app: pgadmin
-#    environment: share-resource
+#    environment: shared-service
 #spec:
 #  replicas: 1
 #  selector:
@@ -405,14 +405,14 @@ spec:
 #    metadata:
 #      labels:
 #        app: pgadmin
-#        environment: share-resource
+#        environment: shared-service
 #      annotations:
 #        vault.hashicorp.com/agent-inject: "true"
-#        vault.hashicorp.com/role: "share-resource"
+#        vault.hashicorp.com/role: "shared-service"
 #        vault.hashicorp.com/agent-pre-populate-only: "false"
-#        vault.hashicorp.com/agent-inject-secret-pgadmin.env: "secret/pgadmin/share-resource"
+#        vault.hashicorp.com/agent-inject-secret-pgadmin.env: "secret/pgadmin/shared-service"
 #        vault.hashicorp.com/agent-inject-template-pgadmin.env: |
-#          {{- with secret "secret/pgadmin/share-resource" -}}
+#          {{- with secret "secret/pgadmin/shared-service" -}}
 #          export PGADMIN_DEFAULT_EMAIL="{{ .Data.PGADMIN_DEFAULT_EMAIL }}"
 #          export PGADMIN_DEFAULT_PASSWORD="{{ .Data.PGADMIN_DEFAULT_PASSWORD }}"
 #          {{- end }}
@@ -463,10 +463,10 @@ spec:
 #kind: Service
 #metadata:
 #  name: pgadmin
-#  namespace: share-resource
+#  namespace: shared-service
 #  labels:
 #    app: pgadmin
-#    environment: share-resource
+#    environment: shared-service
 #spec:
 #  selector:
 #    app: pgadmin
@@ -481,13 +481,13 @@ spec:
 #kind: Ingress
 #metadata:
 #  name: pgadmin
-#  namespace: share-resource
+#  namespace: shared-service
 #  labels:
 #    app: pgadmin
-#    environment: share-resource
+#    environment: shared-service
 #  annotations:
 #    argocd.argoproj.io/sync-wave: "1"
-#    traefik.ingress.kubernetes.io/router.middlewares: share-resource-cors@kubernetescrd
+#    traefik.ingress.kubernetes.io/router.middlewares: shared-service-cors@kubernetescrd
 #spec:
 #  ingressClassName: traefik
 #  rules:
@@ -505,10 +505,10 @@ spec:
 #---
 # PGADMIN VAULT SECRET SETUP
 # Engine : secret  (KV v1)
-# Path   : secret/pgadmin/share-resource
+# Path   : secret/pgadmin/shared-service
 #
 # Provision secrets before syncing this manifest:
 #
-#   vault kv put secret/pgadmin/share-resource \
+#   vault kv put secret/pgadmin/shared-service \
 #     PGADMIN_DEFAULT_EMAIL="<admin-email>" \
 #     PGADMIN_DEFAULT_PASSWORD="<strong-random-password>"
