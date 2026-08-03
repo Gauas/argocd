@@ -1,0 +1,191 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# GRAFANA OTEL-LGTM ALL-IN-ONE
+# Environment: shared-service
+# Ingress    : https://observability.gauas.com
+# ─────────────────────────────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lgtm-grafana
+  namespace: shared-service
+  labels:
+    app: lgtm-grafana
+    environment: shared-service
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lgtm-grafana-storage
+  namespace: shared-service
+  labels:
+    app: lgtm-grafana
+    environment: shared-service
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-grafana
+  namespace: shared-service
+  labels:
+    app: lgtm-grafana
+    environment: shared-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lgtm-grafana
+  template:
+    metadata:
+      labels:
+        app: lgtm-grafana
+        environment: shared-service
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "shared-service"
+        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-inject-secret-lgtm-grafana.env: "secret/grafana/shared-service"
+        vault.hashicorp.com/agent-inject-file-lgtm-grafana.env: ".env"
+        vault.hashicorp.com/agent-inject-template-lgtm-grafana.env: |
+          {{- with secret "secret/grafana/shared-service" -}}
+          {{- range $key, $value := .Data }}
+          export {{ $key }}={{ printf "%q" $value }}
+          {{- end }}
+          {{- end }}
+    spec:
+      serviceAccountName: lgtm-grafana
+      containers:
+        - name: lgtm-grafana
+          image: grafana/otel-lgtm:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              ENV_FILE="/vault/secrets/.env"
+              until [ -f "$ENV_FILE" ]; do
+                echo "[vault-wait] Waiting for secret file to appear..."
+                sleep 2
+              done
+              until [ -s "$ENV_FILE" ]; do
+                echo "[vault-wait] Secret file is empty, waiting..."
+                sleep 2
+              done
+              set -a
+              . "$ENV_FILE"
+              set +a
+              exec /otel-lgtm/run-all.sh
+          ports:
+            - name: grafana
+              containerPort: 3000
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: prometheus
+              containerPort: 9090
+            - name: loki
+              containerPort: 3100
+            - name: tempo
+              containerPort: 3200
+          env:
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 40
+            periodSeconds: 10
+          volumeMounts:
+            - name: storage
+              mountPath: /data
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: lgtm-grafana-storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-grafana
+  namespace: shared-service
+  labels:
+    app: lgtm-grafana
+    environment: shared-service
+spec:
+  type: ClusterIP
+  selector:
+    app: lgtm-grafana
+  ports:
+    - name: grafana
+      port: 3000
+      targetPort: 3000
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+    - name: prometheus
+      port: 9090
+      targetPort: 9090
+    - name: loki
+      port: 3100
+      targetPort: 3100
+    - name: tempo
+      port: 3200
+      targetPort: 3200
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lgtm-grafana
+  namespace: shared-service
+  labels:
+    app: lgtm-grafana
+    environment: shared-service
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: shared-service-cors@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: observability.gauas.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lgtm-grafana
+                port:
+                  name: grafana
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VAULT SECRET PROVISIONING INSTRUCTIONS
+# Engine : secret (KV v1)
+# Path   : secret/grafana/shared-service
+#
+# vault kv put secret/grafana/shared-service GF_SECURITY_ADMIN_USER="admin" GF_SECURITY_ADMIN_PASSWORD="<strong-password>" GF_SERVER_ROOT_URL="https://observability.gauas.com"
+# ─────────────────────────────────────────────────────────────────────────────
