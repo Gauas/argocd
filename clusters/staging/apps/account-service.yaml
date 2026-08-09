@@ -58,6 +58,13 @@ spec:
                 name: account-service
                 port:
                   number: 80
+          - path: /v1/session
+            pathType: Prefix
+            backend:
+              service:
+                name: account-service
+                port:
+                  number: 80
 
 ---
 apiVersion: apps/v1
