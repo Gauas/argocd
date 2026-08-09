@@ -37,7 +37,7 @@ metadata:
     environment: staging
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-    traefik.ingress.kubernetes.io/router.middlewares: shared-service-cors@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: staging-cors@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
