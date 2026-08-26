@@ -131,6 +131,12 @@ spec:
             limits:
               memory: "128Mi"
               cpu: "200m"
+          startupProbe:
+            httpGet:
+              path: /v1/account/health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /v1/account/health
@@ -142,5 +148,4 @@ spec:
             httpGet:
               path: /v1/account/health
               port: 8080
-            initialDelaySeconds: 30
             periodSeconds: 10
