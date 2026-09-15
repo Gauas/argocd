@@ -228,7 +228,7 @@ metadata:
     app: account-service
     environment: production
   annotations:
-    argocd-image-updater.argoproj.io/image-list: account=gauaslab/account-service
+    argocd-image-updater.argoproj.io/image-list: account=gauaslab/account-service-jar
     argocd-image-updater.argoproj.io/account.update-strategy: digest
 spec:
   replicas: 1
@@ -256,7 +256,7 @@ spec:
       serviceAccountName: account-service
       containers:
         - name: account-service
-          image: gauaslab/account-service:latest
+          image: gauaslab/account-service-jar:latest
           imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
           args:
@@ -273,16 +273,22 @@ spec:
               set -a
               . "$ENV_FILE"
               set +a
-              exec ./account-service
+              exec java -jar /app/account-service.jar
           ports:
             - containerPort: 8080
           resources:
             requests:
-              memory: "64Mi"
-              cpu: "50m"
-            limits:
-              memory: "128Mi"
+              memory: "256Mi"
               cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          startupProbe:
+            httpGet:
+              path: /v1/account/health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /v1/account/health
@@ -294,7 +300,5 @@ spec:
             httpGet:
               path: /v1/account/health
               port: 8080
-            initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
-
