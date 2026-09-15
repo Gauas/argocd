@@ -7,13 +7,11 @@ spec:
   generators:
     - list:
         elements:
-          - environment: develop
-            path: clusters/develop
-          - environment: staging
-            path: clusters/staging
           - environment: shared-service
+            branch: master
             path: clusters/shared-service
           - environment: production
+            branch: production
             path: clusters/production
   template:
     metadata:
@@ -28,7 +26,7 @@ spec:
       project: default
       source:
         repoURL: https://github.com/Gauas/argocd.git
-        targetRevision: master
+        targetRevision: "{{branch}}"
         path: "{{path}}"
         directory:
           recurse: true
