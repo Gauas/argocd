@@ -1,0 +1,54 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-identity
+  namespace: production
+  labels:
+    environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  headers:
+    customRequestHeaders:
+      X-Gauas-User-Key: ""
+      X-Gauas-Device-ID: ""
+      X-Gauas-Session-ID: ""
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: forward-auth
+  namespace: production
+  labels:
+    environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  forwardAuth:
+    address: http://authorization-service.production.svc.cluster.local/v1/authorization/forward-auth
+    trustForwardHeader: false
+    authRequestHeaders:
+      - Authorization
+      - X-Request-ID
+    authResponseHeaders:
+      - X-Gauas-User-Key
+      - X-Gauas-Device-ID
+      - X-Gauas-Session-ID
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: protected
+  namespace: production
+  labels:
+    environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  chain:
+    middlewares:
+      - name: strip-identity
+      - name: forward-auth
