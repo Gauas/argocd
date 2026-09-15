@@ -29,6 +29,27 @@ spec:
   type: ClusterIP
 
 ---
+# Direct PostgreSQL access for migration runners. Application traffic must use
+# the pgbouncer ClusterIP service instead.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-migrations
+  namespace: shared-service
+  labels:
+    app: postgresql
+    purpose: migrations
+spec:
+  type: NodePort
+  selector:
+    app: postgresql
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      nodePort: 30033
+
+---
 # Headless service required by StatefulSet for stable DNS per pod
 # e.g. postgresql-0.postgresql-headless.shared-service.svc.cluster.local
 apiVersion: v1
