@@ -39,7 +39,7 @@ metadata:
     argocd-image-updater.argoproj.io/image-list: auth=gauaslab/authorization-service
     argocd-image-updater.argoproj.io/auth.update-strategy: digest
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: authorization-service

@@ -112,7 +112,7 @@ metadata:
     argocd-image-updater.argoproj.io/image-list: account=gauaslab/account-service
     argocd-image-updater.argoproj.io/account.update-strategy: digest
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: account-service
