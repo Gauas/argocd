@@ -21,6 +21,13 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 15
 
 ---
 apiVersion: autoscaling/v2
@@ -45,3 +52,10 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 15
