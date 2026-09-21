@@ -139,6 +139,9 @@ spec:
         - name: account-service
           image: gauaslab/account-service:latest
           imagePullPolicy: Always
+          env:
+            - name: HTTP_SECURE
+              value: "true"
           command: ["/bin/sh", "-c"]
           args:
             - |
