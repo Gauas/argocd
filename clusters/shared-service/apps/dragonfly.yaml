@@ -78,12 +78,15 @@ spec:
         fsGroup: 999
       containers:
         - name: dragonfly
-          image: docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.0
+          image: redis:7.4-alpine
           imagePullPolicy: IfNotPresent
           args:
-            - --logtostderr
-            - --cache_mode
+            - redis-server
             - --maxmemory=256mb
+            - --maxmemory-policy=allkeys-lru
+            - --appendonly=yes
+            - --appendfsync=everysec
+            - --dir=/data
           ports:
             - name: redis
               containerPort: 6379
