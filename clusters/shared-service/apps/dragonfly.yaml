@@ -82,11 +82,16 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - redis-server
-            - --maxmemory=256mb
-            - --maxmemory-policy=allkeys-lru
-            - --appendonly=yes
-            - --appendfsync=everysec
-            - --dir=/data
+            - --maxmemory
+            - 256mb
+            - --maxmemory-policy
+            - allkeys-lru
+            - --appendonly
+            - "yes"
+            - --appendfsync
+            - everysec
+            - --dir
+            - /data
           ports:
             - name: redis
               containerPort: 6379
