@@ -178,7 +178,7 @@ spec:
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "shared-service"
-        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
         vault.hashicorp.com/agent-inject-secret-rabbitmq.env: "secret/rabbitmq/shared-service"
         # KV v1: values are accessed directly under .Data.*
         vault.hashicorp.com/agent-inject-template-rabbitmq.env: |
