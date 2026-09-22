@@ -38,7 +38,7 @@ metadata:
     argocd-image-updater.argoproj.io/image-list: api=gauaslab/hunterjob-api
     argocd-image-updater.argoproj.io/api.update-strategy: digest
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: hunterjob-backend
