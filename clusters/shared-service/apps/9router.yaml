@@ -121,6 +121,8 @@ spec:
               value: "/app/data"
             - name: NODE_ENV
               value: "production"
+            - name: INITIAL_PASSWORD
+              value: "Qu_bao1604"
           resources:
             requests:
               cpu: 100m
