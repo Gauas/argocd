@@ -76,7 +76,7 @@ spec:
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "production"
-        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
         vault.hashicorp.com/agent-inject-secret-hunterjob-backend.env: "secret/hunterjob-backend/production"
         vault.hashicorp.com/agent-inject-file-hunterjob-backend.env: ".env"
         vault.hashicorp.com/agent-inject-template-hunterjob-backend.env: |
@@ -146,7 +146,7 @@ spec:
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "production"
-        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
         vault.hashicorp.com/agent-inject-secret-hunterjob-crawler.env: "secret/hunterjob-backend/production"
         vault.hashicorp.com/agent-inject-file-hunterjob-crawler.env: ".env"
         vault.hashicorp.com/agent-inject-template-hunterjob-crawler.env: |

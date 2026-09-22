@@ -125,7 +125,7 @@ spec:
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "production"
-        vault.hashicorp.com/agent-pre-populate-only: "false"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
         vault.hashicorp.com/agent-inject-secret-account-service.env: "secret/account-service/production"
         vault.hashicorp.com/agent-inject-file-account-service.env: ".env"
         vault.hashicorp.com/agent-inject-template-account-service.env: |
