@@ -3,7 +3,7 @@
 # 9ROUTER (nine-router)
 # AI API Gateway and Reverse Proxy for LLM providers
 # Port     : 20128
-# Ingress  : https://9router.gauas.com, https://router.gauas.com
+# Ingress  : https://ai.gauas.com
 # NodePort : 30128
 # ─────────────────────────────────────────────────────────────
 
@@ -67,27 +67,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: 9router.gauas.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: nine-router
-                port:
-                  number: 20128
-    - host: router.gauas.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: nine-router
-                port:
-                  number: 20128
-    - host: nine-router.gauas.com
+    - host: ai.gauas.com
       http:
         paths:
           - path: /
