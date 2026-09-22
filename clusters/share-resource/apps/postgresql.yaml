@@ -201,7 +201,7 @@ metadata:
   name: pgbouncer
   namespace: share-resource
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app: pgbouncer
@@ -310,7 +310,7 @@ metadata:
   name: haproxy
   namespace: share-resource
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app: haproxy
@@ -353,7 +353,7 @@ metadata:
 spec:
   type: NodePort
   selector:
-    app: postgresql
+    app: haproxy
   ports:
     - port: 5432
       targetPort: 5432
