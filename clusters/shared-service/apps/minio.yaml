@@ -155,7 +155,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:
@@ -245,6 +245,7 @@ metadata:
     argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
+  suspend: true
   backoffLimit: 6
   template:
     metadata:
