@@ -76,7 +76,7 @@ metadata:
     environment: production
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-    traefik.ingress.kubernetes.io/router.middlewares: production-cors@kubernetescrd,production-protected@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: production-cors@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -162,6 +162,7 @@ spec:
               set -a
               . "$ENV_FILE"
               set +a
+              export JWKS_URL=http://identity-service.production.svc.cluster.local/.well-known/jwks.json
               exec /api
           ports:
             - name: http
