@@ -29,7 +29,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: hunterjob-backend
+  name: hunterjob-public
   namespace: production
   labels:
     app: hunterjob-backend
@@ -43,7 +43,68 @@ spec:
     - host: api.gauas.com
       http:
         paths:
-          - path: /api/v1
+          - path: /v1/hunterjob/health
+            pathType: Exact
+            backend:
+              service:
+                name: hunterjob-backend
+                port:
+                  number: 80
+          - path: /v1/hunterjob/ready
+            pathType: Exact
+            backend:
+              service:
+                name: hunterjob-backend
+                port:
+                  number: 80
+          - path: /v1/hunterjob/webhooks/telegram
+            pathType: Exact
+            backend:
+              service:
+                name: hunterjob-backend
+                port:
+                  number: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hunterjob-backend
+  namespace: production
+  labels:
+    app: hunterjob-backend
+    environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: production-cors@kubernetescrd,production-protected@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.gauas.com
+      http:
+        paths:
+          - path: /v1/hunterjob/dashboard
+            pathType: Exact
+            backend:
+              service:
+                name: hunterjob-backend
+                port:
+                  number: 80
+          - path: /v1/hunterjob/search-preference
+            pathType: Prefix
+            backend:
+              service:
+                name: hunterjob-backend
+                port:
+                  number: 80
+          - path: /v1/hunterjob/matches
+            pathType: Prefix
+            backend:
+              service:
+                name: hunterjob-backend
+                port:
+                  number: 80
+          - path: /v1/hunterjob/connections
             pathType: Prefix
             backend:
               service:
@@ -114,11 +175,11 @@ spec:
               cpu: "500m"
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /v1/hunterjob/ready
               port: http
           livenessProbe:
             httpGet:
-              path: /health
+              path: /v1/hunterjob/health
               port: http
 
 ---
