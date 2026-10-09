@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: identity-service
+  namespace: production
+  labels:
+    app: identity-service
+    environment: production
+
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity-service
+  namespace: production
+  labels:
+    app: identity-service
+    environment: production
+spec:
+  selector:
+    app: identity-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  type: ClusterIP
+
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+  namespace: production
+  labels:
+    app: identity-service
+    environment: production
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: identity=gauaslab/identity-service
+    argocd-image-updater.argoproj.io/identity.update-strategy: digest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: identity-service
+  template:
+    metadata:
+      labels:
+        app: identity-service
+        environment: production
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "production"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/agent-inject-secret-identity-service.env: "secret/identity-service/production"
+        vault.hashicorp.com/agent-inject-file-identity-service.env: ".env"
+        vault.hashicorp.com/agent-inject-template-identity-service.env: |
+          {{- with secret "secret/identity-service/production" -}}
+          {{- range $key, $value := .Data }}
+          export {{ $key }}={{ printf "%q" $value }}
+          {{- end }}
+          {{- end }}
+    spec:
+      serviceAccountName: identity-service
+      containers:
+        - name: identity-service
+          image: gauaslab/identity-service:latest@sha256:65caf382ecb689f3eddc6d27355c3f4acfc15dbc0163fc20289ba9f917c2f7de
+          imagePullPolicy: Always
+          env:
+            - name: HTTP_SECURE
+              value: "true"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              ENV_FILE="/vault/secrets/.env"
+              until [ -s "$ENV_FILE" ]; do
+                sleep 2
+              done
+              set -a
+              . "$ENV_FILE"
+              set +a
+              exec ./identity-service
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /v1/identity/health/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /v1/identity/health/live
+              port: http
