@@ -88,10 +88,13 @@ spec:
           {{- end }}
           {{- end }}
     spec:
+      # Temporary placement while whale cannot resolve Docker Hub.
+      nodeSelector:
+        kubernetes.io/hostname: peguin
       serviceAccountName: email-service
       containers:
         - name: email-service
-          image: gauaslab/email-service:latest
+          image: gauaslab/email-service:sha-183c9d03426fde6add1856a5f042acc7d9c831dd@sha256:8871aaa218b508267957e20303203aac42442c17a1087f46f20f5860c4f17bba
           imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
           args:
