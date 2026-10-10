@@ -88,9 +88,6 @@ spec:
           {{- end }}
           {{- end }}
     spec:
-      # Temporary placement while whale cannot resolve Docker Hub.
-      nodeSelector:
-        kubernetes.io/hostname: peguin
       serviceAccountName: email-service
       containers:
         - name: email-service
