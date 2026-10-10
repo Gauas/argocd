@@ -155,7 +155,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
@@ -229,10 +229,8 @@ spec:
           persistentVolumeClaim:
             claimName: minio-data
 
-# MinIO is disabled (replicas: 0), so its bucket-bootstrap Sync hook is omitted.
-# A suspended Sync hook never completes and blocks all later application syncs.
-# When re-enabling MinIO, restore bootstrap explicitly with a bounded timeout;
-# do not reintroduce a suspended hook. PV/PVC and existing bucket data are kept.
+# Existing bucket data is retained on the whale local PV. No bootstrap Sync hook
+# is needed to start the server; a suspended hook would block later ArgoCD syncs.
 
 # Provision these Vault KV-v1 values before syncing:
 #   vault kv put secret/minio/shared-service \
