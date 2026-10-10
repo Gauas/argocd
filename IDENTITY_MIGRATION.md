@@ -19,14 +19,19 @@
 
 ## Rollout constraints
 
-HunterJob is temporarily scheduled on `peguin`: `whale` currently fails host
-DNS resolution for `registry-1.docker.io`. Remove the temporary node selector
-after node DNS is repaired. The existing crawler is not restarted for this
-logging-only change; its Vault agent already runs init-only.
+HunterJob and email-service have no node selector. The temporary `peguin`
+placement has been removed; repair node DNS rather than constraining application
+scheduling. On `whale`, the Tailscale DNS resolver returns SERVFAIL for Docker
+Hub while querying 8.8.8.8 succeeds. Its host uses ifupdown/DHCP on `ens18`.
+A persistent per-node configuration is `supersede domain-name-servers 8.8.8.8,
+1.1.1.1;` in `/etc/dhcp/dhclient.conf`, paired with
+`tailscale set --accept-dns=false`. Apply the network restart from a VM console
+or a maintenance window: restarting networking may interrupt SSH/Tailscale.
+This opts the node out of Tailscale-managed DNS/MagicDNS, not the VPN itself.
+These DNS changes are instructions, not changes applied by this cutover.
 
 Shared email-service and socket-hub manifests live on ArgoCD's `master` branch
-under `clusters/shared-service`, not on `production`. Email-service uses the
-same temporary `peguin` placement. Their manifests were applied selectively
+under `clusters/shared-service`, not on `production`. Their manifests were applied selectively
 because the existing full shared-service sync is blocked on the unrelated
 `minio-public-bucket` hook. This change does not alter that hook or MinIO data.
 
