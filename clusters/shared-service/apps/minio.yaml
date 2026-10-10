@@ -229,56 +229,10 @@ spec:
           persistentVolumeClaim:
             claimName: minio-data
 
----
-# Bootstrap a dedicated public bucket so files at
-# https://cdn.gauas.com/public/<object> are anonymously downloadable.
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: minio-public-bucket
-  namespace: shared-service
-  labels:
-    app: minio
-    environment: shared-service
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-    argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
-spec:
-  suspend: true
-  backoffLimit: 6
-  template:
-    metadata:
-      labels:
-        app: minio-public-bucket
-        environment: shared-service
-      annotations:
-        vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "shared-service"
-        vault.hashicorp.com/agent-pre-populate-only: "true"
-        vault.hashicorp.com/agent-inject-secret-minio.env: "secret/minio/shared-service"
-        vault.hashicorp.com/agent-inject-template-minio.env: |
-          {{- with secret "secret/minio/shared-service" -}}
-          export MINIO_ROOT_USER="{{ .Data.MINIO_ROOT_USER }}"
-          export MINIO_ROOT_PASSWORD="{{ .Data.MINIO_ROOT_PASSWORD }}"
-          {{- end }}
-    spec:
-      restartPolicy: OnFailure
-      nodeSelector:
-        kubernetes.io/hostname: whale
-      containers:
-        - name: mc
-          image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              . /vault/secrets/minio.env
-              until mc alias set local http://minio.shared-service.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
-                echo "[minio-wait] Waiting for MinIO API..."
-                sleep 5
-              done
-              mc mb --ignore-existing local/public
-              mc anonymous set download local/public
+# MinIO is disabled (replicas: 0), so its bucket-bootstrap Sync hook is omitted.
+# A suspended Sync hook never completes and blocks all later application syncs.
+# When re-enabling MinIO, restore bootstrap explicitly with a bounded timeout;
+# do not reintroduce a suspended hook. PV/PVC and existing bucket data are kept.
 
 # Provision these Vault KV-v1 values before syncing:
 #   vault kv put secret/minio/shared-service \
