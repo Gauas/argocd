@@ -76,7 +76,7 @@ metadata:
     environment: production
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-    traefik.ingress.kubernetes.io/router.middlewares: production-cors@kubernetescrd,production-protected@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: production-cors@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -136,6 +136,7 @@ spec:
         environment: production
       annotations:
         vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/log-level: "warn"
         vault.hashicorp.com/role: "production"
         vault.hashicorp.com/agent-pre-populate-only: "true"
         vault.hashicorp.com/agent-inject-secret-hunterjob-backend.env: "secret/hunterjob-backend/production"
@@ -150,7 +151,7 @@ spec:
       serviceAccountName: hunterjob-backend
       containers:
         - name: hunterjob-backend
-          image: gauaslab/hunterjob-api:latest
+          image: gauaslab/hunterjob-api:sha-ddec2b19be8bb87e78b757926f6abc5d467e950f@sha256:cf6c1ece5fbf4c52b3cb618f173a4210aecf1b014f65780cf64d767af979b5fa
           imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
           args:
@@ -162,6 +163,7 @@ spec:
               set -a
               . "$ENV_FILE"
               set +a
+              export JWKS_URL=http://identity-service.production.svc.cluster.local/.well-known/jwks.json
               exec /api
           ports:
             - name: http
@@ -206,6 +208,7 @@ spec:
         environment: production
       annotations:
         vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/log-level: "warn"
         vault.hashicorp.com/role: "production"
         vault.hashicorp.com/agent-pre-populate-only: "true"
         vault.hashicorp.com/agent-inject-secret-hunterjob-crawler.env: "secret/hunterjob-backend/production"
