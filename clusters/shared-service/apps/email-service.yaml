@@ -76,6 +76,7 @@ spec:
         environment: shared-service
       annotations:
         vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/log-level: "warn"
         vault.hashicorp.com/role: "shared-service"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-email-service.env: "secret/email-service/shared-service"
