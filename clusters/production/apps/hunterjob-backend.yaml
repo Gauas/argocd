@@ -148,6 +148,9 @@ spec:
           {{- end }}
           {{- end }}
     spec:
+      # Temporary placement while whale cannot resolve Docker Hub.
+      nodeSelector:
+        kubernetes.io/hostname: peguin
       serviceAccountName: hunterjob-backend
       containers:
         - name: hunterjob-backend
@@ -208,7 +211,6 @@ spec:
         environment: production
       annotations:
         vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/log-level: "warn"
         vault.hashicorp.com/role: "production"
         vault.hashicorp.com/agent-pre-populate-only: "true"
         vault.hashicorp.com/agent-inject-secret-hunterjob-crawler.env: "secret/hunterjob-backend/production"
