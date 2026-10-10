@@ -17,6 +17,19 @@
 - Vault Agent log level is `warn`, preserving warnings/errors without routine
   token-renewal chatter. No database migration or Vault value is changed here.
 
+## Rollout constraints
+
+HunterJob is temporarily scheduled on `peguin`: `whale` currently fails host
+DNS resolution for `registry-1.docker.io`. Remove the temporary node selector
+after node DNS is repaired. The existing crawler is not restarted for this
+logging-only change; its Vault agent already runs init-only.
+
+Shared email-service and socket-hub manifests live on ArgoCD's `master` branch
+under `clusters/shared-service`, not on `production`. Email-service uses the
+same temporary `peguin` placement. Their manifests were applied selectively
+because the existing full shared-service sync is blocked on the unrelated
+`minio-public-bucket` hook. This change does not alter that hook or MinIO data.
+
 Keep `email.send` for verification commands on the asynchronous outbox/queue
 path. Message names follow `domain.action`; `email.sent` describes completion,
 not a request to send. Email-service does not participate in authentication.
