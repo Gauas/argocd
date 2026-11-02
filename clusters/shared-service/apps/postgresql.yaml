@@ -371,14 +371,23 @@ kind: Service
 metadata:
   name: database
   namespace: shared-service
+  labels:
+    app: postgresql
+    access: tailnet
+  annotations:
+    description: "PostgreSQL endpoint for pg.gauas.com (Tailscale only)"
 spec:
-  type: NodePort
+  # K3s ServiceLB exposes the standard PostgreSQL port on the cluster nodes.
+  # pg.gauas.com must remain a DNS-only record pointing to a Tailscale address;
+  # do not enable the Cloudflare proxy for raw PostgreSQL traffic.
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
   selector:
     app: postgresql
   ports:
-    - port: 5432
+    - name: postgres
+      port: 5432
       targetPort: 5432
-      nodePort: 30032
 # ─────────────────────────────────────────────────────────────────────────────
 # VAULT SECRET SETUP
 # Engine : secret  (KV v1)
